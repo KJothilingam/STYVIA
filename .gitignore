@@ -1,0 +1,93 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Build outputs
+dist/
+dist-ssr/
+build/
+*.local
+
+# Environment
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+*.sublime-project
+*.sublime-workspace
+
+# Testing
+coverage/
+*.lcov
+.nyc_output
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Backend (Java/Maven)
+backend/target/
+backend/*.jar
+backend/*.war
+backend/*.ear
+backend/*.zip
+backend/*.tar.gz
+backend/*.rar
+backend/.mvn/
+backend/mvnw
+backend/mvnw.cmd
+
+# Backend IDE
+backend/.idea/
+backend/*.iml
+backend/*.ipr
+backend/*.iws
+backend/.vscode/
+backend/.settings/
+backend/.classpath
+backend/.project
+
+# Backend logs
+backend/logs/
+backend/*.log
+
+# Backend uploads
+backend/uploads/
+uploads/
+
+# Docker
+.docker/
+
+# Misc
+*.swp
+*.bak
+*.tmp
+*.temp
