@@ -1,5 +1,6 @@
 import { useParams, Link } from 'react-router-dom';
 import { CheckCircle, Package, Truck, Home } from 'lucide-react';
+import SafeProductImage from '@/components/SafeProductImage';
 import Layout from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/context/StoreContext';
@@ -86,11 +87,13 @@ const OrderConfirmation = () => {
                   key={`${item.product.id}-${item.size}`}
                   className="flex gap-3"
                 >
-                  <img
-                    src={item.product.images[0]}
-                    alt={item.product.name}
-                    className="w-16 h-20 object-cover rounded"
-                  />
+                  <div className="relative h-20 w-16 shrink-0 overflow-hidden rounded">
+                    <SafeProductImage
+                      urls={item.product.images ?? []}
+                      alt={item.product.name}
+                      className="absolute inset-0"
+                    />
+                  </div>
                   <div className="flex-1">
                     <p className="font-semibold text-sm">{item.product.brand}</p>
                     <p className="text-xs text-muted-foreground">

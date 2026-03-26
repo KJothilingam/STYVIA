@@ -17,6 +17,17 @@ export interface BodyProfileDTO {
   chestType: ChestType;
   waistType: WaistType;
   fitPreference: FitPreference;
+  /** Saved cm overrides; omit/null to use height/weight estimates on the server. */
+  chestCm?: number | null;
+  shoulderCm?: number | null;
+  waistCm?: number | null;
+  lengthCm?: number | null;
+  /** Sizes you usually buy — used to compare with the size you pick on a product. */
+  usualShirtSize?: string | null;
+  usualPantWaistInches?: number | null;
+  usualShoeSize?: string | null;
+  sareeStyle?: string | null;
+  prefersFreeSize?: boolean | null;
 }
 
 /** Normalize legacy enum strings from older DB rows */

@@ -1,17 +1,6 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import {
-  Shirt,
-  RefreshCw,
-  Check,
-  Wrench,
-  Gift,
-  TrendingDown,
-  Flame,
-  Sparkles,
-  CalendarDays,
-  Hourglass,
-} from 'lucide-react';
+import { Shirt, RefreshCw, Check, Wrench, Gift, Package, Smartphone } from 'lucide-react';
 import Layout from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,8 +10,10 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+import { useStore } from '@/context/StoreContext';
 import wardrobeService, { WardrobeItemDTO, LifecycleState } from '@/services/wardrobeService';
-import lifecycleService, { LifecycleItemInsight } from '@/services/lifecycleService';
+import localWardrobeService, { mergeWardrobeLists } from '@/services/localWardrobeService';
+import SafeProductImage from '@/components/SafeProductImage';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
@@ -47,57 +38,40 @@ function formatLastWorn(iso: string | null): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-function isLowUsage(item: WardrobeItemDTO, insight: LifecycleItemInsight | undefined): boolean {
-  if (item.lifecycleState === 'RARELY_USED' || item.lifecycleState === 'DONATE_RECOMMENDED') return true;
-  if (!insight) return item.wearCount < 2;
-  if (insight.wearFrequencyLabel === 'NONE' || insight.wearFrequencyLabel === 'LOW') return true;
-  if (insight.wearCount < 3 && insight.monthsOwned >= 4) return true;
-  return false;
-}
-
-function isHighUsage(insight: LifecycleItemInsight | undefined, item: WardrobeItemDTO): boolean {
-  if (item.wearCount >= 12) return true;
-  return insight?.wearFrequencyLabel === 'HIGH';
+function rowQuantity(item: WardrobeItemDTO): number {
+  const q = item.quantity;
+  return q != null && q > 0 ? q : 1;
 }
 
 const Wardrobe = () => {
   const navigate = useNavigate();
+  const { user } = useStore();
   const [items, setItems] = useState<WardrobeItemDTO[]>([]);
-  const [insights, setInsights] = useState<LifecycleItemInsight[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [activeItem, setActiveItem] = useState<WardrobeItemDTO | null>(null);
   const { toast } = useToast();
 
-  const insightMap = useMemo(() => {
-    const m = new Map<number, LifecycleItemInsight>();
-    insights.forEach((i) => m.set(i.wardrobeItemId, i));
-    return m;
-  }, [insights]);
-
   const load = useCallback(() => {
     setLoading(true);
+    const uid = user?.id;
     wardrobeService
       .getWardrobe()
-      .then(setItems)
-      .catch(() => setItems([]))
+      .then((remote) => {
+        const local = uid ? localWardrobeService.listAsDtos(uid) : [];
+        setItems(mergeWardrobeLists(remote, local));
+      })
+      .catch(() => {
+        const local = uid ? localWardrobeService.listAsDtos(uid) : [];
+        setItems(local);
+      })
       .finally(() => setLoading(false));
-  }, []);
-
-  const loadInsights = useCallback(() => {
-    lifecycleService.getInsights().then((d) => setInsights(d.items)).catch(() => setInsights([]));
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     load();
   }, [load]);
-
-  useEffect(() => {
-    loadInsights();
-  }, [items.length, loadInsights]);
-
-  const activeInsight = activeItem ? insightMap.get(activeItem.id) : undefined;
 
   const openPanel = (item: WardrobeItemDTO) => {
     setActiveItem(item);
@@ -105,58 +79,100 @@ const Wardrobe = () => {
   };
 
   const handleSync = () => {
+    const prevRemote = items.filter((i) => !i.localOnly).length;
+    const uid = user?.id;
     setSyncing(true);
     wardrobeService
       .syncFromOrders()
       .then((list) => {
-        setItems(list);
-        toast({ title: 'Wardrobe synced from delivered orders.' });
+        const local = uid ? localWardrobeService.listAsDtos(uid) : [];
+        setItems(mergeWardrobeLists(list, local));
+        const added = Math.max(0, list.length - prevRemote);
+        if (added > 0) {
+          toast({
+            title: 'Imported from orders',
+            description: `Added ${added} new row${added === 1 ? '' : 's'} from your order history.`,
+          });
+        } else {
+          toast({
+            title: 'Already up to date',
+            description: 'Every order line is already linked, or there are no orders to import.',
+          });
+        }
       })
       .catch(() => toast({ title: 'Sync failed', variant: 'destructive' }))
       .finally(() => setSyncing(false));
   };
 
-  const handleWorn = (id: number) => {
-    wardrobeService.logWorn(id).then(() => {
+  const handleWorn = (item: WardrobeItemDTO) => {
+    const uid = user?.id;
+    if (item.localOnly && uid) {
+      localWardrobeService.logWorn(uid, item.id);
       load();
-      loadInsights();
       toast({ title: 'Logged as worn today!' });
-    }).catch(() => toast({ title: 'Failed to log', variant: 'destructive' }));
+      return;
+    }
+    wardrobeService
+      .logWorn(item.id)
+      .then(() => {
+        load();
+        toast({ title: 'Logged as worn today!' });
+      })
+      .catch(() => toast({ title: 'Failed to log', variant: 'destructive' }));
   };
 
-  const handleRepair = (id: number) => {
-    wardrobeService.logRepair(id).then(() => {
+  const handleRepair = (item: WardrobeItemDTO) => {
+    const uid = user?.id;
+    if (item.localOnly && uid) {
+      localWardrobeService.logRepair(uid, item.id);
       load();
-      loadInsights();
       toast({ title: 'Marked as needs repair.' });
-    }).catch(() => toast({ title: 'Failed', variant: 'destructive' }));
+      return;
+    }
+    wardrobeService
+      .logRepair(item.id)
+      .then(() => {
+        load();
+        toast({ title: 'Marked as needs repair.' });
+      })
+      .catch(() => toast({ title: 'Failed', variant: 'destructive' }));
   };
 
-  const handleDonate = (id: number) => {
-    wardrobeService.logDonate(id).then(() => {
+  const handleDonate = (item: WardrobeItemDTO) => {
+    const uid = user?.id;
+    if (item.localOnly && uid) {
+      localWardrobeService.logDonate(uid, item.id);
       load();
-      loadInsights();
       toast({ title: 'Marked for donate.' });
-    }).catch(() => toast({ title: 'Failed', variant: 'destructive' }));
+      return;
+    }
+    wardrobeService
+      .logDonate(item.id)
+      .then(() => {
+        load();
+        toast({ title: 'Marked for donate.' });
+      })
+      .catch(() => toast({ title: 'Failed', variant: 'destructive' }));
   };
 
-  const handleDonated = (id: number) => {
-    wardrobeService.logEvent(id, 'DONATED').then(() => {
+  const handleDonated = (item: WardrobeItemDTO) => {
+    const uid = user?.id;
+    if (item.localOnly && uid) {
+      localWardrobeService.logDonated(uid, item.id);
       load();
-      loadInsights();
       setPanelOpen(false);
       toast({ title: 'Logged as donated.' });
-    }).catch(() => toast({ title: 'Failed', variant: 'destructive' }));
+      return;
+    }
+    wardrobeService
+      .logEvent(item.id, 'DONATED')
+      .then(() => {
+        load();
+        setPanelOpen(false);
+        toast({ title: 'Logged as donated.' });
+      })
+      .catch(() => toast({ title: 'Failed', variant: 'destructive' }));
   };
-
-  const attentionCount = useMemo(() => {
-    return items.filter((item) => {
-      const ins = insightMap.get(item.id);
-      const low = isLowUsage(item, ins);
-      const drift = ins && ins.simulatedFitNow < ins.baselineFitConfidence - 4;
-      return low || drift;
-    }).length;
-  }, [items, insightMap]);
 
   return (
     <Layout>
@@ -171,35 +187,38 @@ const Wardrobe = () => {
           </nav>
 
           <header className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between mb-10">
-            <div className="space-y-3 max-w-xl">
+            <div className="space-y-3 max-w-2xl">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[hsl(var(--intelligence-mid))]">
                 Your closet
               </p>
               <h1 className="font-display-hero text-4xl md:text-5xl font-semibold tracking-tight text-foreground leading-[1.1]">
-                Pieces you own,{' '}
-                <span className="text-[hsl(var(--intelligence-accent))]">understood.</span>
+                My wardrobe
               </h1>
               <p className="text-muted-foreground text-sm md:text-base leading-relaxed">
-                Tap any item for wear history and simulated fit drift — the story behind each garment.
+                When you <strong className="text-foreground font-medium">place an order</strong>, those lines are saved to
+                your account automatically. You can also add pieces manually from any product page. Browse/demo URLs (like{' '}
+                <code className="text-xs bg-muted px-1 rounded">/product/m5</code>) are kept{' '}
+                <strong className="text-foreground font-medium">on this device</strong> until you open the same style from
+                Shop with a numeric id — then it syncs to the server like your cart-backed orders.
               </p>
-              {items.length > 0 && attentionCount > 0 && (
-                <p className="inline-flex items-center gap-2 text-sm text-[hsl(var(--intelligence-mid))]">
-                  <Sparkles className="w-4 h-4 shrink-0 text-[hsl(var(--intelligence-accent))]" />
-                  <span>
-                    {attentionCount} piece{attentionCount === 1 ? '' : 's'} could use a look — open insights for details.
-                  </span>
-                </p>
-              )}
             </div>
-            <Button
-              variant="outline"
-              className="shrink-0 border-[hsl(var(--intelligence-mid)/0.25)] hover:bg-[hsl(262_58%_22%/0.06)]"
-              onClick={handleSync}
-              disabled={syncing}
-            >
-              <RefreshCw className={cn('w-4 h-4 mr-2', syncing && 'animate-spin')} />
-              Sync from orders
-            </Button>
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <Button variant="default" className="rounded-full" asChild>
+                <Link to="/products">
+                  <Shirt className="w-4 h-4 mr-2" />
+                  Browse &amp; add pieces
+                </Link>
+              </Button>
+              <Button
+                variant="outline"
+                className="border-[hsl(var(--intelligence-mid)/0.25)] hover:bg-[hsl(262_58%_22%/0.06)]"
+                onClick={handleSync}
+                disabled={syncing}
+              >
+                <RefreshCw className={cn('w-4 h-4 mr-2', syncing && 'animate-spin')} />
+                Import missing order lines
+              </Button>
+            </div>
           </header>
 
           {loading ? (
@@ -216,24 +235,38 @@ const Wardrobe = () => {
               <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-[hsl(262_58%_22%/0.08)] mb-6">
                 <Shirt className="w-8 h-8 text-[hsl(var(--intelligence-mid))]" />
               </div>
-              <h2 className="font-display-hero text-2xl font-semibold mb-2">Start your wardrobe</h2>
-              <p className="text-muted-foreground text-sm mb-8 leading-relaxed">
-                Deliver an order, then sync — we&apos;ll track wears, last worn, and how fit may evolve over time.
+              <h2 className="font-display-hero text-2xl font-semibold mb-2">Nothing here yet</h2>
+              <p className="text-muted-foreground text-sm mb-6 leading-relaxed">
+                After your next checkout, items will appear automatically. You can also add pieces from any product page,
+                or run <strong className="text-foreground font-medium">Import missing order lines</strong> if you had
+                orders before this feature.
               </p>
-              <Button onClick={handleSync} disabled={syncing} size="lg" className="rounded-full px-8">
-                <RefreshCw className={cn('w-4 h-4 mr-2', syncing && 'animate-spin')} />
-                Sync from orders
-              </Button>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3">
+                <Button size="lg" className="rounded-full px-8" asChild>
+                  <Link to="/products">
+                    <Shirt className="w-4 h-4 mr-2" />
+                    Browse products
+                  </Link>
+                </Button>
+                <Button
+                  onClick={handleSync}
+                  disabled={syncing}
+                  size="lg"
+                  variant="outline"
+                  className="rounded-full px-8 border-[hsl(var(--intelligence-mid)/0.3)]"
+                >
+                  <RefreshCw className={cn('w-4 h-4 mr-2', syncing && 'animate-spin')} />
+                  Import from orders
+                </Button>
+              </div>
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
               {items.map((item) => {
-                const ins = insightMap.get(item.id);
-                const low = isLowUsage(item, ins);
-                const hot = isHighUsage(ins, item);
+                const q = rowQuantity(item);
                 return (
                   <button
-                    key={item.id}
+                    key={item.localOnly ? `local-${item.id}` : `api-${item.id}`}
                     type="button"
                     onClick={() => openPanel(item)}
                     className={cn(
@@ -245,10 +278,11 @@ const Wardrobe = () => {
                   >
                     <div className="aspect-[4/5] relative bg-gradient-to-b from-muted/30 to-muted/80">
                       {item.imageUrl ? (
-                        <img
-                          src={item.imageUrl}
+                        <SafeProductImage
+                          urls={[item.imageUrl]}
                           alt=""
-                          className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.04]"
+                          className="absolute inset-0"
+                          classNameImg="transition-transform duration-700 group-hover:scale-[1.04]"
                         />
                       ) : (
                         <div className="absolute inset-0 flex items-center justify-center">
@@ -256,14 +290,22 @@ const Wardrobe = () => {
                         </div>
                       )}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-90" />
-                      {low && (
-                        <span className="absolute top-3 left-3 rounded-full bg-amber-500/90 text-white text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 shadow-lg">
-                          Low use
+                      {item.localOnly ? (
+                        <span className="absolute top-3 left-3 inline-flex items-center gap-1 rounded-full bg-white/90 text-foreground text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 shadow-md">
+                          <Smartphone className="w-3 h-3" aria-hidden />
+                          Device
                         </span>
+                      ) : (
+                        item.fromOrder && (
+                          <span className="absolute top-3 left-3 inline-flex items-center gap-1 rounded-full bg-white/90 text-foreground text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 shadow-md">
+                            <Package className="w-3 h-3" aria-hidden />
+                            Order
+                          </span>
+                        )
                       )}
-                      {hot && !low && (
-                        <span className="absolute top-3 right-3 flex h-9 w-9 items-center justify-center rounded-full bg-orange-500/95 text-white shadow-lg">
-                          <Flame className="w-4 h-4" aria-hidden />
+                      {q > 1 && (
+                        <span className="absolute top-3 right-3 rounded-full bg-black/70 text-white text-xs font-semibold tabular-nums px-2 py-0.5">
+                          ×{q}
                         </span>
                       )}
                       <div className="absolute inset-x-0 bottom-0 p-3.5 pt-12 text-white">
@@ -275,7 +317,6 @@ const Wardrobe = () => {
                             Worn {item.wearCount}×
                           </span>
                           <span className="text-[11px] md:text-xs text-white/75 flex items-center gap-1 shrink-0">
-                            <CalendarDays className="w-3 h-3 opacity-80" aria-hidden />
                             {formatLastWorn(item.lastWornAt)}
                           </span>
                         </div>
@@ -285,7 +326,6 @@ const Wardrobe = () => {
                       <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium truncate pr-2">
                         {item.size} · {item.color}
                       </span>
-                      <Sparkles className="w-3.5 h-3.5 text-[hsl(var(--intelligence-accent))] shrink-0 opacity-80 group-hover:opacity-100 transition-opacity" />
                     </div>
                   </button>
                 );
@@ -296,19 +336,15 @@ const Wardrobe = () => {
       </div>
 
       <Sheet open={panelOpen} onOpenChange={setPanelOpen}>
-        <SheetContent className="w-full sm:max-w-md overflow-y-auto border-l border-[hsl(var(--intelligence-mid)/0.15)] bg-gradient-to-b from-card to-[hsl(262_58%_22%/0.04)] p-0 gap-0">
+        <SheetContent className="w-full sm:max-w-md overflow-y-auto border-l border-border/60 bg-card p-0 gap-0">
           {activeItem && (
             <>
               <SheetDescription className="sr-only">
-                Wear history and fit insights for {activeItem.productName}.
+                Details for {activeItem.productName}.
               </SheetDescription>
               <div className="relative aspect-[5/4] bg-muted shrink-0">
                 {activeItem.imageUrl ? (
-                  <img
-                    src={activeItem.imageUrl}
-                    alt=""
-                    className="absolute inset-0 w-full h-full object-cover"
-                  />
+                  <SafeProductImage urls={[activeItem.imageUrl]} alt="" className="absolute inset-0" />
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center bg-muted">
                     <Shirt className="w-20 h-20 text-muted-foreground/35" />
@@ -322,115 +358,61 @@ const Wardrobe = () => {
                   <SheetTitle className="font-display-hero text-2xl font-semibold leading-tight">
                     {activeItem.productName}
                   </SheetTitle>
-                  <SheetDescription className="text-sm text-muted-foreground">
-                    {activeItem.size} · {activeItem.color} · {LIFECYCLE_LABELS[activeItem.lifecycleState]}
+                  <SheetDescription className="text-sm text-muted-foreground space-y-1">
+                    <p>
+                      {activeItem.size} · {activeItem.color} · Qty {rowQuantity(activeItem)}
+                    </p>
+                    <p>{LIFECYCLE_LABELS[activeItem.lifecycleState]}</p>
+                    {activeItem.localOnly && (
+                      <p className="text-xs">Stored on this browser only (demo / non-catalog product URL).</p>
+                    )}
+                    {!activeItem.localOnly && activeItem.fromOrder && (
+                      <p className="text-xs">Linked to a purchase on this store.</p>
+                    )}
                   </SheetDescription>
                 </SheetHeader>
 
-                <section
-                  aria-label="Insights"
-                  className="rounded-2xl border border-[hsl(var(--intelligence-accent)/0.25)] bg-gradient-to-br from-[hsl(187_70%_42%/0.08)] via-card to-[hsl(262_58%_22%/0.06)] p-5 shadow-sm"
-                >
-                  <div className="flex items-center gap-2 mb-4">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[hsl(var(--intelligence-deep))] text-primary-foreground">
-                      <Sparkles className="w-4 h-4" />
-                    </div>
-                    <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-[hsl(var(--intelligence-deep))]">
-                      Insights
-                    </h2>
-                  </div>
-
-                  <ul className="space-y-4">
-                    <li className="flex gap-4 items-start">
-                      <div className="rounded-xl bg-background/80 px-4 py-3 border border-border/60 min-w-0 flex-1">
-                        <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Usage</p>
-                        <p className="font-display-hero text-2xl font-semibold tabular-nums">
-                          Worn {activeItem.wearCount} {activeItem.wearCount === 1 ? 'time' : 'times'}
-                        </p>
-                      </div>
-                    </li>
-
-                    {isLowUsage(activeItem, activeInsight) && (
-                      <li className="flex gap-3 items-center rounded-xl bg-amber-500/10 border border-amber-500/25 px-4 py-3">
-                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-400">
-                          <Hourglass className="w-5 h-5" />
-                        </span>
-                        <div>
-                          <p className="font-semibold text-amber-900 dark:text-amber-200">Low usage item</p>
-                          <p className="text-xs text-amber-800/80 dark:text-amber-300/80 mt-0.5">
-                            This piece isn&apos;t getting much wear — worth re-styling or checking fit.
-                          </p>
-                        </div>
-                      </li>
-                    )}
-
-                    {activeInsight && activeInsight.simulatedFitNow < activeInsight.baselineFitConfidence && (
-                      <li className="flex gap-3 items-center rounded-xl bg-rose-500/8 border border-rose-500/20 px-4 py-3">
-                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400">
-                          <TrendingDown className="w-5 h-5" />
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="font-semibold text-rose-900 dark:text-rose-100">
-                            Fit decreased to {activeInsight.simulatedFitNow}%
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            From {activeInsight.baselineFitConfidence}% at purchase (simulated stretch, wash & wear).
-                          </p>
-                          <div className="mt-3 h-2 rounded-full bg-muted overflow-hidden flex">
-                            <div
-                              className="h-full bg-[hsl(var(--intelligence-accent))] transition-all duration-500"
-                              style={{ width: `${activeInsight.simulatedFitNow}%` }}
-                            />
-                          </div>
-                          <div className="flex justify-between text-[10px] text-muted-foreground mt-1.5 uppercase tracking-wide">
-                            <span>Then {activeInsight.baselineFitConfidence}%</span>
-                            <span>Est. now</span>
-                          </div>
-                        </div>
-                      </li>
-                    )}
-                  </ul>
-
-                  {activeInsight?.narrative && (
-                    <p className="mt-5 text-sm leading-relaxed text-muted-foreground border-t border-border/50 pt-4">
-                      {activeInsight.narrative}
-                    </p>
-                  )}
-                </section>
+                {activeItem.recommendation && (
+                  <p className="text-sm text-muted-foreground leading-relaxed border border-border/60 rounded-xl px-4 py-3 bg-muted/30">
+                    {activeItem.recommendation}
+                  </p>
+                )}
 
                 <div className="flex flex-wrap gap-2">
-                  <Button size="sm" variant="default" className="rounded-full" onClick={() => handleWorn(activeItem.id)}>
+                  <Button size="sm" variant="default" className="rounded-full" onClick={() => handleWorn(activeItem)}>
                     <Check className="w-3.5 h-3.5 mr-1.5" />
                     Worn today
                   </Button>
-                  <Button size="sm" variant="outline" className="rounded-full" onClick={() => handleRepair(activeItem.id)}>
+                  <Button size="sm" variant="outline" className="rounded-full" onClick={() => handleRepair(activeItem)}>
                     <Wrench className="w-3.5 h-3.5 mr-1.5" />
                     Needs repair
                   </Button>
-                  <Button size="sm" variant="outline" className="rounded-full" onClick={() => handleDonate(activeItem.id)}>
+                  <Button size="sm" variant="outline" className="rounded-full" onClick={() => handleDonate(activeItem)}>
                     <Gift className="w-3.5 h-3.5 mr-1.5" />
                     Suggest donate
                   </Button>
-                  <Button size="sm" variant="secondary" className="rounded-full" onClick={() => handleDonated(activeItem.id)}>
+                  <Button size="sm" variant="secondary" className="rounded-full" onClick={() => handleDonated(activeItem)}>
                     I donated
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="rounded-full border-emerald-600/40 text-emerald-800 dark:text-emerald-300"
-                    onClick={() => {
-                      navigate('/donations', {
-                        state: {
-                          wardrobeItemId: activeItem.id,
-                          productSummary: activeItem.productName,
-                          size: activeItem.size,
-                        },
-                      });
-                      setPanelOpen(false);
-                    }}
-                  >
-                    Schedule donation pickup
-                  </Button>
+                  {!activeItem.localOnly && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-full border-emerald-600/40 text-emerald-800 dark:text-emerald-300"
+                      onClick={() => {
+                        navigate('/donations', {
+                          state: {
+                            wardrobeItemId: activeItem.id,
+                            productSummary: activeItem.productName,
+                            size: activeItem.size,
+                          },
+                        });
+                        setPanelOpen(false);
+                      }}
+                    >
+                      Schedule donation pickup
+                    </Button>
+                  )}
                 </div>
               </div>
             </>

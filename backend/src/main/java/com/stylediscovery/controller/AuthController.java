@@ -9,6 +9,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -35,6 +36,13 @@ public class AuthController {
     public ResponseEntity<ApiResponse<AuthResponse>> refreshToken(@RequestParam String refreshToken) {
         AuthResponse response = authService.refreshToken(refreshToken);
         return ResponseEntity.ok(ApiResponse.success("Token refreshed successfully", response));
+    }
+
+    /** Client clears JWT locally; server clears request security context (stateless — no server session). */
+    @PostMapping("/logout")
+    public ResponseEntity<ApiResponse<Void>> logout() {
+        SecurityContextHolder.clearContext();
+        return ResponseEntity.ok(ApiResponse.success("Logged out", null));
     }
 }
 

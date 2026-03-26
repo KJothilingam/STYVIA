@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import HeroCarousel from '@/components/HeroCarousel';
 import CategoryCard from '@/components/CategoryCard';
@@ -5,10 +6,34 @@ import DealBanner from '@/components/DealBanner';
 import ProductCard from '@/components/ProductCard';
 import { heroBanners, categories, dealBanners, brands } from '@/data/categories';
 import { getTrendingProducts, getDealsOfTheDay } from '@/data/products';
+import productService from '@/services/productService';
+import type { Product } from '@/types';
 
 const Index = () => {
-  const trendingProducts = getTrendingProducts();
-  const dealsProducts = getDealsOfTheDay();
+  const [catalogPreview, setCatalogPreview] = useState<Product[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    productService
+      .getAllProducts({ page: 0, size: 10 })
+      .then((page) => {
+        if (cancelled || !page.content?.length) return;
+        setCatalogPreview(page.content);
+      })
+      .catch(() => {
+        /* offline or no backend — keep mock tiles */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const trendingProducts = catalogPreview ? catalogPreview.slice(0, 5) : getTrendingProducts();
+  const dealsProducts = catalogPreview
+    ? catalogPreview.length > 5
+      ? catalogPreview.slice(5, 10)
+      : catalogPreview.slice(0, 5)
+    : getDealsOfTheDay();
 
   return (
     <Layout>

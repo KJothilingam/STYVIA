@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Minus, Plus, X, ShoppingBag, Tag } from 'lucide-react';
+import SafeProductImage from '@/components/SafeProductImage';
 import Layout from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -64,11 +65,14 @@ const Cart = () => {
                   className="flex gap-4 p-4 border rounded-lg"
                 >
                   {/* Product Image */}
-                  <Link to={`/product/${item.product.id}`} className="flex-shrink-0">
-                    <img
-                      src={item.product.images[0]}
+                  <Link
+                    to={`/product/${item.product.id}`}
+                    className="relative flex-shrink-0 block h-32 w-24 overflow-hidden rounded"
+                  >
+                    <SafeProductImage
+                      urls={item.product.images ?? []}
                       alt={item.product.name}
-                      className="w-24 h-32 object-cover rounded"
+                      className="absolute inset-0"
                     />
                   </Link>
 

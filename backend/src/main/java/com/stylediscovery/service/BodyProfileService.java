@@ -50,6 +50,15 @@ public class BodyProfileService {
         e.setChestType(d.getChestType());
         e.setWaistType(d.getWaistType());
         e.setFitPreference(d.getFitPreference());
+        e.setChestCm(d.getChestCm());
+        e.setShoulderCm(d.getShoulderCm());
+        e.setWaistCm(d.getWaistCm());
+        e.setLengthCm(d.getLengthCm());
+        e.setUsualShirtSize(d.getUsualShirtSize() == null || d.getUsualShirtSize().isBlank() ? null : d.getUsualShirtSize().trim());
+        e.setUsualPantWaistInches(d.getUsualPantWaistInches());
+        e.setUsualShoeSize(d.getUsualShoeSize() == null || d.getUsualShoeSize().isBlank() ? null : d.getUsualShoeSize().trim());
+        e.setSareeStyle(d.getSareeStyle() == null || d.getSareeStyle().isBlank() ? null : d.getSareeStyle().trim());
+        e.setPrefersFreeSize(Boolean.TRUE.equals(d.getPrefersFreeSize()));
     }
 
     private BodyProfileDTO toDto(BodyProfile e) {
@@ -64,6 +73,15 @@ public class BodyProfileService {
                 .chestType(e.getChestType())
                 .waistType(e.getWaistType())
                 .fitPreference(e.getFitPreference())
+                .chestCm(e.getChestCm())
+                .shoulderCm(e.getShoulderCm())
+                .waistCm(e.getWaistCm())
+                .lengthCm(e.getLengthCm())
+                .usualShirtSize(e.getUsualShirtSize())
+                .usualPantWaistInches(e.getUsualPantWaistInches())
+                .usualShoeSize(e.getUsualShoeSize())
+                .sareeStyle(e.getSareeStyle())
+                .prefersFreeSize(e.getPrefersFreeSize())
                 .build();
     }
 }

@@ -29,9 +29,24 @@ const genderToCategory = (g: string): Product['category'] => {
   return 'men';
 };
 
+function categoryFromApi(dto: ApiProduct): Product['category'] {
+  if (dto.gender != null && String(dto.gender).trim() !== '') {
+    return genderToCategory(String(dto.gender));
+  }
+  const cg = dto.categories?.[0]?.gender;
+  if (cg != null && String(cg).trim() !== '') {
+    return genderToCategory(String(cg));
+  }
+  const slug = (dto.categories?.[0]?.slug ?? '').toLowerCase();
+  if (slug.includes('women') || slug === 'women') return 'women';
+  if (slug.includes('kid')) return 'kids';
+  if (slug.includes('accessor')) return 'accessories';
+  return 'men';
+}
+
 /** Convert API product to frontend Product type */
 export function apiProductToProduct(dto: ApiProduct): Product {
-  const category = dto.categories?.[0]?.slug ?? (dto.gender ? genderToCategory(dto.gender) : 'men');
+  const category = categoryFromApi(dto);
   return {
     id: String(dto.id),
     name: dto.name,
@@ -41,13 +56,15 @@ export function apiProductToProduct(dto: ApiProduct): Product {
     price: Number(dto.price),
     originalPrice: dto.originalPrice != null ? Number(dto.originalPrice) : Number(dto.price),
     discount: dto.discountPercentage ?? 0,
-    images: dto.images?.length ? dto.images : ['https://via.placeholder.com/400x500?text=No+Image'],
+    images: (dto.images ?? [])
+      .map((s) => (typeof s === 'string' ? s.trim() : ''))
+      .filter((s) => s.length > 0),
     sizes: dto.sizes ?? [],
     colors: (dto.colors ?? []).map((c) => ({ name: c.name, hex: c.hex ?? '#999' })),
     description: dto.description ?? '',
     material: dto.material ?? '',
-    rating: dto.rating ?? 0,
-    reviewCount: dto.reviewCount ?? 0,
+    rating: Number(dto.rating ?? 0) || 0,
+    reviewCount: Number(dto.reviewCount ?? 0) || 0,
     inStock: (dto.sizes?.length ?? 0) > 0,
     stretchLevel: dto.stretchLevel ?? null,
   };

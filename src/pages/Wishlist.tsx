@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Heart, ShoppingBag, X } from 'lucide-react';
+import SafeProductImage from '@/components/SafeProductImage';
 import Layout from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/context/StoreContext';
@@ -60,12 +61,8 @@ const Wishlist = () => {
             >
               {/* Image */}
               <div className="relative aspect-[3/4] overflow-hidden bg-secondary">
-                <Link to={`/product/${item.product.id}`}>
-                  <img
-                    src={item.product.images[0]}
-                    alt={item.product.name}
-                    className="w-full h-full object-cover"
-                  />
+                <Link to={`/product/${item.product.id}`} className="absolute inset-0 block">
+                  <SafeProductImage urls={item.product.images ?? []} alt={item.product.name} className="absolute inset-0" />
                 </Link>
                 <button
                   onClick={() => removeFromWishlist(item.product.id)}

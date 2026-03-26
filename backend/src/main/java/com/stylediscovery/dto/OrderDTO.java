@@ -19,6 +19,9 @@ import java.util.List;
 public class OrderDTO {
     private Long id;
     private String orderNumber;
+    /** Filled for all order views; helps admin identify the buyer. */
+    private String customerEmail;
+    private String customerName;
     private List<OrderItemDTO> items;
     private AddressDTO address;
     private BigDecimal subtotal;

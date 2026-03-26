@@ -9,16 +9,18 @@ import {
   X,
   ChevronDown,
   Sparkles,
-  MapPin,
+  Map,
   HeartHandshake,
   UserRound,
   Shirt,
+  LayoutDashboard,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/context/StoreContext';
 import { categories } from '@/data/categories';
 import { cn } from '@/lib/utils';
+import authService from '@/services/authService';
 
 /** Highlighted “you are here” treatment for the compact feature links (xl strip). */
 const featureNavActiveClass =
@@ -32,18 +34,20 @@ const Header = () => {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
-  const { cartItemsCount, wishlist, isLoggedIn } = useStore();
+  const { cartItemsCount, wishlist, isLoggedIn, user } = useStore();
+  const isAdminUser = useMemo(
+    () => isLoggedIn && authService.isAdmin(),
+    [isLoggedIn, user?.id],
+  );
 
   const routeSearch = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const categoryParam = routeSearch.get('category');
   const subcategoryParam = routeSearch.get('subcategory');
-  const viewFit = routeSearch.get('view') === 'fit';
   const donationsTabBoxes = routeSearch.get('tab') === 'boxes';
   const { pathname } = location;
 
-  const onStudioHome = pathname === '/products' && !categoryParam && !subcategoryParam && !viewFit;
-  const onSmartFit = pathname === '/products' && viewFit;
-  const onProfile = pathname.startsWith('/profile');
+  const onBodyPage = pathname.startsWith('/body');
+  const onAccountPage = pathname.startsWith('/profile');
   const onWardrobe = pathname.startsWith('/wardrobe');
   const onDonations = pathname.startsWith('/donations');
   const onShops = pathname.startsWith('/shops');
@@ -62,8 +66,8 @@ const Header = () => {
         Free shipping over ₹799 · Code <span className="font-mono bg-white/20 px-1.5 py-0.5 rounded-md">STYVIA100</span>
       </div>
 
-      <div className="container mx-auto px-4">
-        <div className="flex h-16 w-full min-w-0 items-center gap-2 sm:gap-3 lg:gap-4">
+      <div className="container mx-auto px-3 sm:px-4">
+        <div className="flex h-16 w-full min-w-0 items-center gap-2 sm:gap-3 lg:gap-3 xl:gap-4">
           {/* Logo */}
           <Link to="/" className="shrink-0 group inline-block">
             <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-rose-600 to-rose-500 bg-clip-text text-transparent group-hover:opacity-90 transition-opacity">
@@ -72,8 +76,8 @@ const Header = () => {
             <span className="block h-0.5 w-full rounded-full bg-gradient-to-r from-rose-500 to-amber-400 scale-x-90 group-hover:scale-x-100 transition-transform origin-left" />
           </Link>
 
-          {/* Desktop Navigation */}
-          <nav className="hidden shrink-0 lg:flex lg:items-center lg:gap-4 xl:gap-5">
+          {/* Desktop: categories + feature strip; search is fixed-width on the right */}
+          <nav className="relative z-10 hidden shrink-0 lg:flex lg:items-center lg:gap-2 xl:gap-3">
             {categories.map((category) => (
               <div
                 key={category.id}
@@ -84,7 +88,7 @@ const Header = () => {
                 <Link
                   to={`/products?category=${category.slug}`}
                   className={cn(
-                    'flex items-center gap-1 py-5 text-sm font-semibold uppercase tracking-wide transition-colors border-b-2',
+                    'flex items-center gap-0.5 border-b-2 py-4 text-xs font-semibold uppercase tracking-wide transition-colors xl:gap-1 xl:py-5 xl:text-sm',
                     categoryParam === category.slug
                       ? 'text-primary border-primary'
                       : 'text-foreground border-transparent hover:text-primary hover:border-primary'
@@ -113,44 +117,20 @@ const Header = () => {
                 )}
               </div>
             ))}
-            <Link
-              to="/products"
-              className={cn(
-                'py-5 text-sm font-semibold uppercase tracking-wide transition-colors border-b-2',
-                onStudioHome
-                  ? 'text-primary border-primary'
-                  : 'text-foreground border-transparent hover:text-primary hover:border-primary'
-              )}
-            >
-              Studio
-            </Link>
             <div
-              className="hidden shrink-0 self-stretch items-center gap-4 border-l border-border/80 pl-3 ml-1 xl:flex xl:gap-5 xl:pl-4 xl:ml-2"
+              className="hidden shrink-0 self-stretch items-center gap-1.5 border-l border-border/80 pl-2 ml-1 lg:flex lg:pl-2.5 lg:gap-2 xl:gap-3 xl:pl-3 xl:ml-1.5"
               role="navigation"
-              aria-label="Style and community"
+              aria-label="Style, community, and maps"
             >
               <Link
-                to="/products?view=fit"
+                to={isLoggedIn ? '/body' : '/login?next=%2Fbody'}
                 className={cn(
-                  'inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-full px-3.5 text-xs font-bold uppercase tracking-wide transition-colors',
-                  onSmartFit
-                    ? cn(featureNavActiveClass, 'rounded-full border-intelligence-mid/40 bg-intelligence-deep/20 ring-intelligence-mid/20')
-                    : 'bg-intelligence-deep/10 text-intelligence-mid hover:bg-intelligence-deep/18'
-                )}
-                aria-current={onSmartFit ? 'page' : undefined}
-              >
-                <Sparkles className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
-                <span className="leading-none pt-px">Smart fit</span>
-              </Link>
-              <Link
-                to={isLoggedIn ? '/profile' : '/login?next=%2Fprofile'}
-                className={cn(
-                  'inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md px-2.5 text-xs font-bold uppercase tracking-wide transition-colors',
-                  onProfile
+                  'inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 text-[11px] font-bold uppercase tracking-wide transition-colors xl:gap-2 xl:px-2.5 xl:text-xs',
+                  onBodyPage
                     ? featureNavActiveClass
                     : 'text-intelligence-mid hover:text-intelligence-accent'
                 )}
-                aria-current={onProfile ? 'page' : undefined}
+                aria-current={onBodyPage ? 'page' : undefined}
               >
                 <UserRound className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
                 <span className="leading-none pt-px">Body</span>
@@ -158,7 +138,7 @@ const Header = () => {
               <Link
                 to={isLoggedIn ? '/wardrobe' : '/login?next=%2Fwardrobe'}
                 className={cn(
-                  'inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md px-2.5 text-xs font-bold uppercase tracking-wide transition-colors',
+                  'inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 text-[11px] font-bold uppercase tracking-wide transition-colors xl:gap-2 xl:px-2.5 xl:text-xs',
                   onWardrobe
                     ? featureNavActiveClass
                     : 'text-intelligence-mid hover:text-intelligence-accent'
@@ -171,7 +151,7 @@ const Header = () => {
               <Link
                 to={isLoggedIn ? '/donations' : '/login?next=%2Fdonations'}
                 className={cn(
-                  'inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md px-2.5 text-xs font-bold uppercase tracking-wide transition-colors',
+                  'inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 text-[11px] font-bold uppercase tracking-wide transition-colors xl:gap-2 xl:px-2.5 xl:text-xs',
                   onDonations
                     ? featureNavActiveDonateClass
                     : 'text-emerald-700/90 hover:text-emerald-600 dark:text-emerald-400'
@@ -184,39 +164,65 @@ const Header = () => {
               <Link
                 to={isLoggedIn ? '/shops' : '/login?next=%2Fshops'}
                 className={cn(
-                  'inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md px-2.5 text-xs font-bold uppercase tracking-wide transition-colors',
+                  'inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 lg:px-2.5 text-[11px] font-bold uppercase tracking-wide transition-colors xl:text-xs',
                   onShops ? featureNavActiveClass : 'text-intelligence-mid hover:text-intelligence-accent'
                 )}
                 aria-current={onShops ? 'page' : undefined}
               >
-                <MapPin className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
-                <span className="leading-none pt-px">Shops</span>
+                <Map className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
+                <span className="leading-none pt-px">Maps</span>
               </Link>
             </div>
           </nav>
 
-          {/* Search + actions: one flex group so gap always separates field from icons (no overlap) */}
-          <div className="flex min-w-0 flex-1 items-center justify-end gap-3 sm:gap-4 md:gap-5 lg:pl-2">
+          {/* Fixed-width search so it never grows over the nav; icons stay right */}
+          <div className="ml-auto flex min-w-0 shrink-0 items-center justify-end gap-2 sm:gap-3 md:gap-4">
             <form
               onSubmit={handleSearch}
-              className="hidden min-w-[10rem] flex-1 items-center md:flex md:max-w-md lg:max-w-[min(22rem,100%)] xl:max-w-md"
+              className="hidden w-[9.5rem] shrink-0 sm:w-[10.5rem] md:flex md:w-44 lg:w-[11.5rem] xl:w-52"
             >
-              <div className="relative isolate w-full">
+              <div className="relative w-full">
                 <Search
-                  className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                  className="pointer-events-none absolute left-2.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground"
                   aria-hidden
                 />
                 <Input
                   type="text"
-                  placeholder="Search for products, brands and more"
+                  placeholder="Search products…"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-9 border-0 bg-secondary pl-10 pr-3 text-sm shadow-none focus-visible:ring-1 focus-visible:ring-offset-0"
+                  className="h-9 border-0 bg-secondary pl-9 pr-2 text-sm shadow-none focus-visible:ring-1 focus-visible:ring-offset-0"
                 />
               </div>
             </form>
 
             <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+            {isAdminUser ? (
+              <>
+                <Link to="/admin" className="shrink-0 sm:hidden">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-9 w-11 border-primary/40 bg-primary/5 text-primary hover:bg-primary/10"
+                    aria-label="Admin panel"
+                  >
+                    <LayoutDashboard className="h-[1.125rem] w-[1.125rem]" />
+                  </Button>
+                </Link>
+                <Link to="/admin" className="hidden sm:block shrink-0">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-9 gap-1.5 border-primary/40 bg-primary/5 px-2.5 text-xs font-bold text-primary hover:bg-primary/10"
+                  >
+                    <LayoutDashboard className="h-3.5 w-3.5" aria-hidden />
+                    Admin
+                  </Button>
+                </Link>
+              </>
+            ) : null}
             <Link to={isLoggedIn ? '/profile' : '/login'} className="shrink-0">
               <Button
                 variant="ghost"
@@ -224,11 +230,11 @@ const Header = () => {
                 className={cn(
                   'flex h-9 w-11 flex-col items-center justify-center gap-0.5 rounded-lg p-0 sm:h-10 sm:w-12',
                   /* inset highlight so ring/border never paints over the search field */
-                  onProfile
+                  onAccountPage
                     ? 'bg-primary/12 ring-inset ring-2 ring-primary/30 hover:bg-primary/15'
                     : 'hover:bg-accent'
                 )}
-                aria-current={onProfile ? 'page' : undefined}
+                aria-current={onAccountPage ? 'page' : undefined}
               >
                 <User className="!h-[1.125rem] !w-[1.125rem] shrink-0" />
                 <span className="hidden text-[10px] font-medium leading-none sm:block">Profile</span>
@@ -305,23 +311,20 @@ const Header = () => {
                 Body intelligence
               </p>
               <div className="flex flex-col gap-1.5">
+                {isAdminUser ? (
+                  <Link
+                    to="/admin"
+                    className="text-sm font-semibold rounded-lg px-2 py-2 transition-colors bg-primary/10 text-primary ring-1 ring-primary/25"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    Admin panel
+                  </Link>
+                ) : null}
                 <Link
-                  to="/products?view=fit"
-                  className={cn(
-                    'text-sm font-medium rounded-lg px-2 py-2 transition-colors',
-                    onSmartFit
-                      ? 'bg-primary/10 text-primary ring-1 ring-primary/20'
-                      : 'text-foreground hover:bg-muted/80'
-                  )}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  Smart fit — browse products
-                </Link>
-                <Link
-                  to={isLoggedIn ? '/profile' : '/login?next=%2Fprofile'}
+                  to={isLoggedIn ? '/body' : '/login?next=%2Fbody'}
                   className={cn(
                     'text-sm rounded-lg px-2 py-2 transition-colors',
-                    onProfile
+                    onBodyPage
                       ? 'bg-primary/10 text-primary font-medium ring-1 ring-primary/20'
                       : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground'
                   )}
@@ -387,7 +390,10 @@ const Header = () => {
                   )}
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
-                  Nearby shops
+                  <span className="font-medium text-foreground">Maps</span>
+                  <span className="block text-xs text-muted-foreground font-normal mt-0.5">
+                    Nearby clothing stores
+                  </span>
                 </Link>
               </div>
             </div>

@@ -1,6 +1,12 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { CartItem, WishlistItem, Product, User, Address, Order } from '@/types';
 import authService from '@/services/authService';
+import {
+  initSessionCrossTabSync,
+  subscribeSession,
+  scheduleProactiveAccessRefresh,
+} from '@/services/sessionManager';
 import cartService from '@/services/cartService';
 import wishlistService from '@/services/wishlistService';
 import addressService from '@/services/addressService';
@@ -89,6 +95,8 @@ interface StoreContextType {
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const queryClient = useQueryClient();
+
   // State - Start with empty data
   const [cart, setCart] = useState<CartItem[]>(() => {
     // Try to load cart from localStorage on mount
@@ -118,20 +126,63 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
 
-  // Check if user is logged in on mount
   useEffect(() => {
-    const savedUser = authService.getUser();
-    if (savedUser) {
-      const userId = savedUser.userId.toString();
+    initSessionCrossTabSync();
+  }, []);
+
+  useEffect(() => {
+    const unsub = subscribeSession((event) => {
+      if (event === 'logout') {
+        setUser(null);
+        setAddresses([]);
+        setOrders([]);
+        queryClient.clear();
+      }
+      if (event === 'tokens-updated') {
+        const saved = authService.getUser();
+        if (saved) {
+          setUser({
+            id: String(saved.userId),
+            name: saved.name ?? '',
+            email: saved.email ?? '',
+            phone: '',
+          });
+        }
+      }
+    });
+    return unsub;
+  }, [queryClient]);
+
+  useEffect(() => {
+    if (authService.isAuthenticated()) {
+      scheduleProactiveAccessRefresh();
+    }
+  }, []);
+
+  // Check if user is logged in on mount (never throw — bad localStorage would blank the whole app)
+  useEffect(() => {
+    try {
+      if (!authService.isAuthenticated()) return;
+      const savedUser = authService.getUser();
+      if (!savedUser) {
+        authService.logout();
+        return;
+      }
+      const userId = String(savedUser.userId);
+      if (!userId || userId === 'undefined' || userId === 'NaN') {
+        authService.logout();
+        return;
+      }
       setUser({
         id: userId,
-        name: savedUser.name,
-        email: savedUser.email,
+        name: savedUser.name ?? '',
+        email: savedUser.email ?? '',
         phone: '',
       });
-      
-      // Load user-specific cart and wishlist from localStorage
       loadUserCartWishlist(userId);
+    } catch (e) {
+      console.error('Failed to restore session from storage', e);
+      authService.logout();
     }
   }, []);
 

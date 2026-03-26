@@ -33,5 +33,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     
     @Query("SELECT SUM(o.totalAmount) FROM Order o WHERE o.orderStatus = 'DELIVERED'")
     Double getTotalRevenue();
+
+    long countByUser_Id(Long userId);
 }
 

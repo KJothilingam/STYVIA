@@ -61,12 +61,37 @@ export interface AdminOrderSummary {
   id: number;
   orderNumber: string;
   totalAmount: number;
+  subtotal?: number;
+  discount?: number;
+  deliveryFee?: number;
   orderStatus: string;
   paymentStatus: string;
   paymentMethod: string;
   createdAt: string;
-  address?: { name?: string; phone?: string };
-  items?: { id?: number; productName?: string; quantity?: number; size?: string; color?: string }[];
+  deliveredAt?: string | null;
+  customerEmail?: string | null;
+  customerName?: string | null;
+  address?: {
+    name?: string;
+    phone?: string;
+    addressLine1?: string;
+    addressLine2?: string;
+    locality?: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+  };
+  items?: {
+    id?: number;
+    productId?: number;
+    productName?: string;
+    productBrand?: string;
+    quantity?: number;
+    size?: string;
+    color?: string;
+    price?: number;
+    subtotal?: number;
+  }[];
 }
 
 export interface AdminOrdersPage {
@@ -83,11 +108,39 @@ export interface AdminUserSummary {
   email: string;
   phone?: string | null;
   isActive?: boolean;
+  emailVerified?: boolean;
   createdAt: string;
+  roles?: string[];
 }
 
 export interface AdminUsersPage {
   content: AdminUserSummary[];
+  totalElements: number;
+  totalPages: number;
+  size: number;
+  number: number;
+}
+
+/** Catalog row from GET /admin/products (ProductDTO). */
+export interface AdminProductDTO {
+  id: number;
+  name: string;
+  slug?: string;
+  brand: string;
+  gender: string;
+  price: number;
+  originalPrice?: number;
+  discountPercentage?: number;
+  description?: string;
+  material?: string;
+  status?: string;
+  images?: string[];
+  sizes?: string[];
+  categories?: { id: number; name: string; slug?: string }[];
+}
+
+export interface AdminProductsPage {
+  content: AdminProductDTO[];
   totalElements: number;
   totalPages: number;
   size: number;
@@ -101,9 +154,9 @@ class AdminService {
   }
 
   async getAllOrders(status?: string, page = 0, size = 20): Promise<AdminOrdersPage> {
-    const response = await api.get('/admin/orders', {
-      params: { status, page, size },
-    });
+    const params: Record<string, string | number> = { page, size };
+    if (status && status !== 'ALL') params.status = status;
+    const response = await api.get('/admin/orders', { params });
     return response.data.data;
   }
 
@@ -114,17 +167,83 @@ class AdminService {
     return response.data.data;
   }
 
-  async getAllUsers(page = 0, size = 20): Promise<AdminUsersPage> {
-    const response = await api.get('/admin/users', {
-      params: { page, size },
-    });
+  async getAllUsers(
+    page = 0,
+    size = 20,
+    opts?: { q?: string; active?: 'ALL' | 'true' | 'false' }
+  ): Promise<AdminUsersPage> {
+    const params: Record<string, string | number | boolean> = { page, size };
+    if (opts?.q?.trim()) params.q = opts.q.trim();
+    if (opts?.active && opts.active !== 'ALL') params.active = opts.active === 'true';
+    const response = await api.get('/admin/users', { params });
     return response.data.data;
+  }
+
+  async getUserById(userId: number): Promise<AdminUserSummary> {
+    const res = await api.get(`/admin/users/${userId}`);
+    return res.data.data;
+  }
+
+  async createUser(data: {
+    name: string;
+    email: string;
+    password: string;
+    phone?: string;
+    roles?: string[];
+  }): Promise<AdminUserSummary> {
+    const res = await api.post('/admin/users', data);
+    return res.data.data;
+  }
+
+  async updateUser(
+    userId: number,
+    data: {
+      name?: string;
+      email?: string;
+      phone?: string | null;
+      isActive?: boolean;
+      newPassword?: string;
+      roles?: string[];
+    }
+  ): Promise<AdminUserSummary> {
+    const res = await api.put(`/admin/users/${userId}`, data);
+    return res.data.data;
   }
 
   async updateUserStatus(userId: number, isActive: boolean): Promise<void> {
     await api.put(`/admin/users/${userId}/status`, null, {
       params: { isActive },
     });
+  }
+
+  async deleteUser(userId: number): Promise<void> {
+    await api.delete(`/admin/users/${userId}`);
+  }
+
+  async getAdminProducts(params?: {
+    status?: string;
+    q?: string;
+    page?: number;
+    size?: number;
+    sortBy?: string;
+    sortDir?: string;
+  }): Promise<AdminProductsPage> {
+    const res = await api.get('/admin/products', {
+      params: {
+        page: params?.page ?? 0,
+        size: params?.size ?? 20,
+        sortBy: params?.sortBy ?? 'createdAt',
+        sortDir: params?.sortDir ?? 'DESC',
+        ...(params?.q?.trim() ? { q: params.q.trim() } : {}),
+        ...(params?.status && params.status !== 'ALL' ? { status: params.status } : {}),
+      },
+    });
+    return res.data.data;
+  }
+
+  async getCategories(): Promise<{ id: number; name: string; gender?: string }[]> {
+    const res = await api.get('/categories');
+    return res.data.data ?? [];
   }
 
   async createProduct(data: {

@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { User, MapPin, ShoppingBag, Heart, LogOut, ChevronRight } from 'lucide-react';
+import { User, MapPin, ShoppingBag, Heart, LogOut, ChevronRight, Ruler } from 'lucide-react';
 import Layout from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -81,6 +81,16 @@ const Profile = () => {
                   <div className="flex items-center gap-3">
                     <ShoppingBag className="w-5 h-5" />
                     <span>Orders</span>
+                  </div>
+                  <ChevronRight className="w-4 h-4" />
+                </Link>
+                <Link
+                  to="/body"
+                  className="flex items-center justify-between p-3 rounded-lg hover:bg-secondary"
+                >
+                  <div className="flex items-center gap-3">
+                    <Ruler className="w-5 h-5 text-primary" />
+                    <span>Body measurements</span>
                   </div>
                   <ChevronRight className="w-4 h-4" />
                 </Link>

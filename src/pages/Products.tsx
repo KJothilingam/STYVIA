@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { Filter, ChevronDown, X, Grid3X3, LayoutGrid } from 'lucide-react';
+import { Filter, Loader2, X, Grid3X3, LayoutGrid } from 'lucide-react';
 import Layout from '@/components/layout/Layout';
 import ProductCard from '@/components/ProductCard';
 import { Button } from '@/components/ui/button';
@@ -20,8 +20,10 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
-import { products } from '@/data/products';
+import { products as mockProducts } from '@/data/products';
 import { categories } from '@/data/categories';
+import productService from '@/services/productService';
+import type { Product } from '@/types';
 
 const sortOptions = [
   { value: 'popular', label: 'Popularity' },
@@ -31,13 +33,6 @@ const sortOptions = [
   { value: 'discount', label: 'Better Discount' },
 ];
 
-const brandsList = [...new Set(products.map((p) => p.brand))];
-const colorsList = Array.from(
-  new Map(
-    products.flatMap((p) => p.colors).map((c) => [c.name, c])
-  ).values()
-);
-
 const Products = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [showFilters, setShowFilters] = useState(false);
@@ -46,24 +41,85 @@ const Products = () => {
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   const [selectedColors, setSelectedColors] = useState<string[]>([]);
   const [gridCols, setGridCols] = useState(4);
+  const [catalogItems, setCatalogItems] = useState<Product[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(true);
 
   const category = searchParams.get('category');
   const subcategory = searchParams.get('subcategory');
   const search = searchParams.get('search');
   const sort = searchParams.get('sort') || 'popular';
   const discount = searchParams.get('discount');
+  const brandFromUrl = searchParams.get('brand');
+
+  useEffect(() => {
+    let cancelled = false;
+    setCatalogLoading(true);
+    setCatalogItems([]);
+    (async () => {
+      try {
+        let content: Product[] = [];
+        const q = search?.trim();
+        if (q) {
+          const page = await productService.searchProducts(q, 0, 100);
+          content = page.content ?? [];
+        } else if (category === 'men') {
+          const page = await productService.getProductsByGender('MEN', 0, 100);
+          content = page.content ?? [];
+        } else if (category === 'women') {
+          const page = await productService.getProductsByGender('WOMEN', 0, 100);
+          content = page.content ?? [];
+        } else if (category === 'kids') {
+          const page = await productService.getProductsByGender('KIDS', 0, 100);
+          content = page.content ?? [];
+        } else if (category === 'accessories') {
+          const page = await productService.getAllProducts({ page: 0, size: 300 });
+          content = (page.content ?? []).filter((p) => p.category === 'accessories');
+        } else {
+          const page = await productService.getAllProducts({ page: 0, size: 200 });
+          content = page.content ?? [];
+        }
+        if (!cancelled) setCatalogItems(content);
+      } catch {
+        if (!cancelled) setCatalogItems(mockProducts);
+      } finally {
+        if (!cancelled) setCatalogLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [category, search]);
+
+  const brandsList = useMemo(
+    () => [...new Set(catalogItems.map((p) => p.brand))].sort(),
+    [catalogItems],
+  );
+  const colorsList = useMemo(
+    () =>
+      Array.from(new Map(catalogItems.flatMap((p) => p.colors).map((c) => [c.name, c])).values()),
+    [catalogItems],
+  );
 
   const filteredProducts = useMemo(() => {
-    let result = [...products];
+    let result = [...catalogItems];
 
-    // Filter by category
-    if (category) {
+    // Filter by category (accessories / unfiltered API lists)
+    if (category && !search?.trim()) {
       result = result.filter((p) => p.category === category);
     }
 
     // Filter by subcategory
     if (subcategory) {
-      result = result.filter((p) => p.subcategory === subcategory);
+      const sub = subcategory.toLowerCase();
+      result = result.filter((p) => {
+        const sc = (p.subcategory || '').toLowerCase();
+        return sc.includes(sub) || sub.includes(sc);
+      });
+    }
+
+    if (brandFromUrl?.trim()) {
+      const b = brandFromUrl.trim();
+      result = result.filter((p) => p.brand === b);
     }
 
     // Filter by search
@@ -125,7 +181,19 @@ const Products = () => {
     }
 
     return result;
-  }, [category, subcategory, search, sort, discount, priceRange, selectedBrands, selectedSizes, selectedColors]);
+  }, [
+    catalogItems,
+    category,
+    subcategory,
+    search,
+    sort,
+    discount,
+    brandFromUrl,
+    priceRange,
+    selectedBrands,
+    selectedSizes,
+    selectedColors,
+  ]);
 
   const handleSortChange = (value: string) => {
     searchParams.set('sort', value);
@@ -286,7 +354,7 @@ const Products = () => {
                   : 'All Products'}
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
-              {filteredProducts.length} items found
+              {catalogLoading ? 'Loading catalog…' : `${filteredProducts.length} items found`}
             </p>
           </div>
         </div>
@@ -410,7 +478,12 @@ const Products = () => {
             )}
 
             {/* Product Grid */}
-            {filteredProducts.length > 0 ? (
+            {catalogLoading ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-24 text-muted-foreground">
+                <Loader2 className="h-10 w-10 animate-spin text-primary" aria-hidden />
+                <p className="text-sm font-medium">Loading products…</p>
+              </div>
+            ) : filteredProducts.length > 0 ? (
               <div
                 className={`grid gap-4 grid-cols-2 ${gridCols === 3
                     ? 'md:grid-cols-3'

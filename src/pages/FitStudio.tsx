@@ -20,6 +20,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Product } from '@/types';
 import { fitConfidenceLabel } from '@/features/fit/fitLabels';
 import { VirtualTryOnAvatar } from '@/components/fit/VirtualTryOnAvatar';
+import SafeProductImage from '@/components/SafeProductImage';
 
 const BODY_SHAPES: BodyShape[] = ['SLIM', 'REGULAR', 'ATHLETIC', 'HEAVY'];
 const SHOULDERS: ShoulderWidth[] = ['NARROW', 'NORMAL', 'BROAD'];
@@ -184,9 +185,9 @@ export default function FitStudio() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
           <div className="space-y-6">
             <div className="rounded-2xl border bg-muted/30 p-6 flex flex-col items-center justify-center min-h-[320px]">
-              {draft && product.images?.[0] && (
+              {draft && (product.images?.length ?? 0) > 0 && (
                 <VirtualTryOnAvatar
-                  productImageUrl={product.images[0]}
+                  productImageUrls={product.images ?? []}
                   productName={product.name}
                   heightCm={draft.heightCm}
                   weightKg={draft.weightKg}
@@ -261,10 +262,8 @@ export default function FitStudio() {
           </div>
 
           <div className="space-y-6 lg:sticky lg:top-24">
-            <div className="rounded-xl border overflow-hidden">
-              {product.images?.[0] && (
-                <img src={product.images[0]} alt="" className="w-full aspect-[3/4] object-cover" />
-              )}
+            <div className="relative aspect-[3/4] w-full overflow-hidden rounded-xl border">
+              <SafeProductImage urls={product.images ?? []} alt={product.name} className="absolute inset-0" />
               <div className="p-4">
                 <p className="text-xs text-muted-foreground uppercase">{product.brand}</p>
                 <p className="font-semibold">{product.name}</p>

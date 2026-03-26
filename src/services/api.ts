@@ -1,7 +1,13 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
+import { API_BASE_URL } from '@/config/apiBaseUrl';
+import {
+  refreshSessionTokens,
+  clearSessionAndNotify,
+  redirectAfterSessionInvalid,
+  shouldSkipAuthRetry,
+} from '@/services/sessionManager';
 
-/** Full API base including `/api/v1` — backend default port 8080, frontend dev 5173 */
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
+export { API_BASE_URL };
 
 export type RetryableRequestConfig = InternalAxiosRequestConfig & { _retry?: boolean };
 
@@ -37,33 +43,20 @@ api.interceptors.response.use(
     if (
       error.response?.status === 401 &&
       originalRequest &&
-      !originalRequest._retry
+      !originalRequest._retry &&
+      !shouldSkipAuthRetry(originalRequest)
     ) {
       originalRequest._retry = true;
 
       try {
-        const refreshToken = localStorage.getItem('refreshToken');
-        if (refreshToken) {
-          const response = await axios.post(`${API_BASE_URL}/auth/refresh`, null, {
-            params: { refreshToken },
-          });
-
-          const { accessToken, refreshToken: newRefreshToken } = response.data.data;
-          
-          localStorage.setItem('accessToken', accessToken);
-          localStorage.setItem('refreshToken', newRefreshToken);
-
-          originalRequest.headers = originalRequest.headers ?? {};
-          originalRequest.headers.Authorization = `Bearer ${accessToken}`;
-          return api(originalRequest);
-        }
-      } catch (refreshError) {
-        // Refresh failed, logout user
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('user');
-        window.location.href = '/login';
-        return Promise.reject(refreshError);
+        const data = await refreshSessionTokens();
+        originalRequest.headers = originalRequest.headers ?? {};
+        originalRequest.headers.Authorization = `Bearer ${data.accessToken}`;
+        return api(originalRequest);
+      } catch {
+        clearSessionAndNotify();
+        redirectAfterSessionInvalid();
+        return Promise.reject(error);
       }
     }
 

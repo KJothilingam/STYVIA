@@ -76,6 +76,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/products/*/fit-confidence").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/v1/products/*/outfit").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/v1/products/*/fit-feedback").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/fit/check").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/v1/orders/items/*/fit-return-size-issue").authenticated()
                         .requestMatchers("/api/v1/products/**").permitAll()
                         /*

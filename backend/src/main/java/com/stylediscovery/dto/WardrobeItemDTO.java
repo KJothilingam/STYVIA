@@ -17,6 +17,9 @@ public class WardrobeItemDTO {
     private String productName;
     private String size;
     private String color;
+    private Integer quantity;
+    /** True when this row is tied to a specific order line (including auto-import on checkout). */
+    private Boolean fromOrder;
     private String imageUrl;
     private LocalDateTime purchasedAt;
     private Integer wearCount;

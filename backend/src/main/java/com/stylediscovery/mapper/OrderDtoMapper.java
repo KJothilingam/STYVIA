@@ -35,6 +35,8 @@ public class OrderDtoMapper {
         return OrderDTO.builder()
                 .id(order.getId())
                 .orderNumber(order.getOrderNumber())
+                .customerEmail(order.getUser() != null ? order.getUser().getEmail() : null)
+                .customerName(order.getUser() != null ? order.getUser().getName() : null)
                 .items(itemDTOs)
                 .address(addressDTO)
                 .subtotal(order.getSubtotal())

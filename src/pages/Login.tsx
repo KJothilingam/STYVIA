@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,7 +21,25 @@ const Login = () => {
 
   const { setUser } = useStore();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
+  const sessionToastShown = useRef(false);
+
+  useEffect(() => {
+    if (searchParams.get('session') !== 'expired' || sessionToastShown.current) return;
+    sessionToastShown.current = true;
+    const fromAdmin = searchParams.get('from') === 'admin';
+    toast({
+      title: 'Session ended',
+      description: fromAdmin
+        ? 'Please sign in again to continue in Admin.'
+        : 'Please sign in again to continue.',
+    });
+    const next = new URLSearchParams(searchParams);
+    next.delete('session');
+    next.delete('from');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, toast]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

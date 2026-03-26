@@ -1,4 +1,4 @@
-import { Link, Outlet, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import {
@@ -7,14 +7,15 @@ import {
   Package,
   Users,
   LogOut,
-  ArrowLeft,
   HeartHandshake,
+  Store,
 } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { useToast } from '@/hooks/use-toast';
 import adminService from '@/services/adminService';
 import { Badge } from '@/components/ui/badge';
 import { donationQueryKeys } from '@/lib/donationQueryKeys';
+import { cn } from '@/lib/utils';
 
 const AdminLayout = () => {
   const navigate = useNavigate();
@@ -45,39 +46,52 @@ const AdminLayout = () => {
   ];
 
   return (
-    <div className="flex h-screen bg-gray-100">
-      {/* Sidebar */}
-      <div className="relative w-64 bg-white shadow-lg flex flex-col">
+    <div className="flex h-screen bg-slate-100/90 dark:bg-slate-950">
+      <div className="relative flex w-64 flex-col border-r border-border/60 bg-card shadow-sm">
         <div className="p-6">
-          <h1 className="text-2xl font-bold text-primary">ADMIN PANEL</h1>
-          <p className="text-sm text-muted-foreground mt-1">{user?.name}</p>
+          <h1 className="text-xl font-semibold tracking-tight text-primary">Admin</h1>
+          <p className="text-muted-foreground mt-1 text-sm">{user?.name}</p>
         </div>
 
-        <nav className="px-3 space-y-1 flex-1 pb-24">
+        <nav className="flex-1 space-y-0.5 px-3 pb-24">
           {menuItems.map((item) => (
-            <Link
+            <NavLink
               key={item.path}
               to={item.path}
-              className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors"
+              end={item.path === '/admin'}
+              className={({ isActive }) =>
+                cn(
+                  'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
+                  isActive
+                    ? 'bg-primary/10 text-primary shadow-sm'
+                    : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+                )
+              }
             >
-              <item.icon className="h-5 w-5 shrink-0" />
+              <item.icon className="h-5 w-5 shrink-0 opacity-90" />
               <span className="flex-1">{item.label}</span>
               {item.path === '/admin/donations' && pendingDonations > 0 ? (
                 <Badge variant="destructive" className="h-5 min-w-5 justify-center px-1.5 text-[10px] tabular-nums">
                   {pendingDonations > 99 ? '99+' : pendingDonations}
                 </Badge>
               ) : null}
-            </Link>
+            </NavLink>
           ))}
         </nav>
 
-        <div className="absolute bottom-0 left-0 right-0 p-3 border-t bg-white">
-          <Link to="/">
-            <Button variant="outline" className="w-full justify-start" size="sm">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Store
-            </Button>
-          </Link>
+        <div className="absolute bottom-0 left-0 right-0 space-y-2 p-3 border-t bg-white">
+          <Button variant="secondary" className="w-full justify-start" size="sm" asChild>
+            <Link to="/admin">
+              <LayoutDashboard className="h-4 w-4 mr-2" />
+              Admin dashboard
+            </Link>
+          </Button>
+          <Button variant="outline" className="w-full justify-start" size="sm" asChild>
+            <Link to="/">
+              <Store className="h-4 w-4 mr-2" />
+              Back to store
+            </Link>
+          </Button>
           <Button
             variant="ghost"
             className="w-full justify-start mt-2"

@@ -1,4 +1,7 @@
+import axios from 'axios';
 import api from './api';
+import { API_BASE_URL } from '@/config/apiBaseUrl';
+import { clearClientSession, onSessionEstablished } from './sessionManager';
 
 export interface SignupData {
   name: string;
@@ -56,9 +59,13 @@ class AuthService {
   }
 
   logout(): void {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('user');
+    const t = localStorage.getItem('accessToken');
+    if (t) {
+      void axios
+        .post(`${API_BASE_URL}/auth/logout`, {}, { headers: { Authorization: `Bearer ${t}` } })
+        .catch(() => {});
+    }
+    clearClientSession();
   }
 
   isAuthenticated(): boolean {
@@ -67,7 +74,24 @@ class AuthService {
 
   getUser(): AuthResponse | null {
     const userStr = localStorage.getItem('user');
-    return userStr ? JSON.parse(userStr) : null;
+    if (!userStr) return null;
+    try {
+      const u = JSON.parse(userStr) as Partial<AuthResponse> & { id?: number };
+      if (u == null || typeof u !== 'object') return null;
+      const userId = u.userId ?? u.id;
+      if (userId == null || Number.isNaN(Number(userId))) return null;
+      return {
+        accessToken: u.accessToken ?? '',
+        refreshToken: u.refreshToken ?? '',
+        tokenType: u.tokenType ?? 'Bearer',
+        userId: Number(userId),
+        name: u.name ?? '',
+        email: u.email ?? '',
+        roles: Array.isArray(u.roles) ? u.roles : [],
+      };
+    } catch {
+      return null;
+    }
   }
 
   isAdmin(): boolean {
@@ -79,6 +103,7 @@ class AuthService {
     localStorage.setItem('accessToken', authData.accessToken);
     localStorage.setItem('refreshToken', authData.refreshToken);
     localStorage.setItem('user', JSON.stringify(authData));
+    onSessionEstablished();
   }
 }
 

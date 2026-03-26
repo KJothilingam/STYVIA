@@ -50,6 +50,37 @@ public class BodyProfile {
     @Column(name = "fit_preference", nullable = false, length = 32)
     private String fitPreference;
 
+    /** Optional manual overrides (cm). When null, {@link com.stylediscovery.service.BodyMeasurementEstimator} uses formulas. */
+    @Column(name = "chest_cm")
+    private Double chestCm;
+
+    @Column(name = "shoulder_cm")
+    private Double shoulderCm;
+
+    @Column(name = "waist_cm")
+    private Double waistCm;
+
+    @Column(name = "length_cm")
+    private Double lengthCm;
+
+    /** Letter size the user usually buys for tops (e.g. S, M, L, XL). */
+    @Column(name = "usual_shirt_size", length = 16)
+    private String usualShirtSize;
+
+    /** Numeric waist size in inches for bottoms the user usually buys (e.g. 34). */
+    @Column(name = "usual_pant_waist_inches")
+    private Integer usualPantWaistInches;
+
+    @Column(name = "usual_shoe_size", length = 32)
+    private String usualShoeSize;
+
+    @Column(name = "saree_style", length = 64)
+    private String sareeStyle;
+
+    @Column(name = "prefers_free_size", nullable = false)
+    @Builder.Default
+    private Boolean prefersFreeSize = Boolean.FALSE;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

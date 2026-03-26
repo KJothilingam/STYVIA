@@ -45,6 +45,7 @@ public class OrderService {
     private final OrderDtoMapper orderDtoMapper;
     private final CatalogCacheEvictionService catalogCacheEvictionService;
     private final FitTrainingDataService fitTrainingDataService;
+    private final WardrobeService wardrobeService;
 
     @Transactional(rollbackFor = Exception.class)
     public OrderDTO placeOrder(Long userId, PlaceOrderRequest request) {
@@ -167,6 +168,14 @@ public class OrderService {
             fitTrainingDataService.recordFromPlacedOrder(persisted);
         } catch (Exception e) {
             logger.warn("Fit training data capture failed orderId={}: {}", persisted.getId(), e.getMessage());
+        }
+        try {
+            wardrobeService.importOrderLinesAfterPlacement(
+                    userId,
+                    persisted.getItems(),
+                    persisted.getCreatedAt());
+        } catch (Exception e) {
+            logger.warn("Wardrobe import after order failed orderId={}: {}", persisted.getId(), e.getMessage());
         }
         return orderDtoMapper.toDto(persisted);
     }

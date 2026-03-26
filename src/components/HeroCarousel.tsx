@@ -11,19 +11,29 @@ interface HeroCarouselProps {
 
 const HeroCarousel = ({ banners, autoPlayInterval = 4000 }: HeroCarouselProps) => {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const n = banners?.length ?? 0;
 
   const nextSlide = useCallback(() => {
-    setCurrentIndex((prev) => (prev + 1) % banners.length);
-  }, [banners.length]);
+    if (n <= 0) return;
+    setCurrentIndex((prev) => (prev + 1) % n);
+  }, [n]);
 
   const prevSlide = useCallback(() => {
-    setCurrentIndex((prev) => (prev - 1 + banners.length) % banners.length);
-  }, [banners.length]);
+    if (n <= 0) return;
+    setCurrentIndex((prev) => (prev - 1 + n) % n);
+  }, [n]);
 
   useEffect(() => {
+    if (n <= 0) return;
     const timer = setInterval(nextSlide, autoPlayInterval);
     return () => clearInterval(timer);
-  }, [nextSlide, autoPlayInterval]);
+  }, [nextSlide, autoPlayInterval, n]);
+
+  if (n === 0) {
+    return (
+      <div className="relative aspect-[3/1] bg-muted md:aspect-[4/1] lg:aspect-[5/1]" aria-hidden />
+    );
+  }
 
   return (
     <div className="relative overflow-hidden bg-secondary">

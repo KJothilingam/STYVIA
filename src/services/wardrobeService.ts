@@ -16,6 +16,11 @@ export interface WardrobeItemDTO {
   productName: string;
   size: string;
   color: string;
+  quantity?: number;
+  /** Row created from an order line (including auto-import at checkout). */
+  fromOrder?: boolean;
+  /** Stored in the browser for demo / mock catalog URLs (no numeric DB product id). */
+  localOnly?: boolean;
   imageUrl: string | null;
   purchasedAt: string;
   wearCount: number;
@@ -35,6 +40,20 @@ const wardrobeService = {
   async syncFromOrders(): Promise<WardrobeItemDTO[]> {
     const res = await api.post<{ data: WardrobeItemDTO[] }>('/wardrobe/sync');
     return res.data.data ?? [];
+  },
+
+  /** Add a catalog product you already own (no order required). */
+  async addFromProduct(
+    productId: number,
+    body: { size: string; color: string; fitConfidence?: number; quantity?: number }
+  ): Promise<WardrobeItemDTO> {
+    const res = await api.post<{ data: WardrobeItemDTO }>(`/wardrobe/from-product/${productId}`, {
+      size: body.size,
+      color: body.color,
+      fitConfidence: body.fitConfidence,
+      quantity: body.quantity,
+    });
+    return res.data.data;
   },
 
   async addFromOrderItem(orderItemId: number, fitConfidence?: number): Promise<WardrobeItemDTO> {

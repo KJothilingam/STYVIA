@@ -1,7 +1,9 @@
 import type { BodyShape } from '@/services/bodyProfileService';
+import SafeProductImage from '@/components/SafeProductImage';
 
 interface VirtualTryOnAvatarProps {
-  productImageUrl: string;
+  /** Tried in order until one loads (same as product grid). */
+  productImageUrls: string[];
   productName: string;
   heightCm: number;
   weightKg: number;
@@ -13,7 +15,7 @@ interface VirtualTryOnAvatarProps {
  * Not photorealistic 3D — aligns with honest product positioning in the project report.
  */
 export function VirtualTryOnAvatar({
-  productImageUrl,
+  productImageUrls,
   productName,
   heightCm,
   weightKg,
@@ -57,7 +59,12 @@ export function VirtualTryOnAvatar({
             opacity: 0.92,
           }}
         >
-          <img src={productImageUrl} alt="" className="h-full w-full object-cover object-top" />
+          <SafeProductImage
+            urls={productImageUrls}
+            alt=""
+            className="h-full w-full"
+            classNameImg="object-top"
+          />
         </div>
       </div>
 

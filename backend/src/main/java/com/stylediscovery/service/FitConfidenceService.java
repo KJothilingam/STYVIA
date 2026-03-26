@@ -6,10 +6,12 @@ import com.stylediscovery.dto.ml.MlPredictFitRequestDTO;
 import com.stylediscovery.dto.ml.MlProductFeaturesDTO;
 import com.stylediscovery.dto.ml.MlUserFeaturesDTO;
 import com.stylediscovery.entity.BodyProfile;
+import com.stylediscovery.entity.Category;
 import com.stylediscovery.entity.GarmentSizeSpec;
 import com.stylediscovery.entity.Product;
 import com.stylediscovery.enums.GarmentFitStyle;
 import com.stylediscovery.enums.StretchLevel;
+import com.stylediscovery.exception.BadRequestException;
 import com.stylediscovery.exception.ResourceNotFoundException;
 import com.stylediscovery.repository.BodyProfileRepository;
 import com.stylediscovery.repository.GarmentSizeSpecRepository;
@@ -22,6 +24,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -298,6 +302,114 @@ public class FitConfidenceService {
                 .build();
     }
 
+    @Transactional(readOnly = true)
+    public FitCheckResponseDTO checkFitForSelectedSize(Long userId, Long productId, String selectedSizeRaw) {
+        String selectedSize = selectedSizeRaw == null ? "" : selectedSizeRaw.trim();
+        if (selectedSize.isBlank()) {
+            throw new BadRequestException("Please select a size");
+        }
+
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
+        BodyProfile profile = bodyProfileRepository.findByUser_Id(userId)
+                .orElseThrow(() -> new BadRequestException("Body profile required. Please complete quick body details."));
+
+        List<String> sizes = FitSizeOrdering.sortedCopy(inventoryRepository.findAvailableSizesByProductId(productId));
+        if (sizes.isEmpty()) {
+            throw new BadRequestException("No sizes in stock for this product.");
+        }
+
+        String matchedSize = sizes.stream()
+                .filter(s -> s.equalsIgnoreCase(selectedSize))
+                .findFirst()
+                .orElseThrow(() -> new BadRequestException("Selected size is not available for this product."));
+
+        BodyMeasurementEstimator.EstimatedBody body = bodyMeasurementEstimator.estimate(profile);
+        StretchLevel stretch = product.getStretchLevel() != null ? product.getStretchLevel() : StretchLevel.MEDIUM;
+        double stretchFactor = stretchFactor(stretch);
+        double toleranceScale = fitPreferenceToleranceScale(profile.getFitPreference());
+
+        Map<String, GarmentSizeSpec> specByKey = garmentSizeSpecRepository.findByProduct_Id(productId).stream()
+                .collect(Collectors.toMap(s -> FitSizeOrdering.normalizeKey(s.getSizeKey()), s -> s, (a, b) -> a));
+        int medianIdx = sizes.size() / 2;
+
+        List<FitCheckCandidate> candidates = new ArrayList<>();
+        for (String size : sizes) {
+            int idx = FitSizeOrdering.indexInLadder(sizes, size);
+            GarmentSizeSpec spec = specByKey.get(FitSizeOrdering.normalizeKey(size));
+            double gChest = garmentCm(spec != null ? spec.getChestCm() : null, body.chestCm(), idx, medianIdx, GRADE_CHEST_CM_PER_STEP);
+            double gShoulder = garmentCm(spec != null ? spec.getShoulderCm() : null, body.shoulderCm(), idx, medianIdx, GRADE_SHOULDER_CM_PER_STEP);
+            double gWaist = garmentCm(spec != null ? spec.getWaistCm() : null, body.waistCm(), idx, medianIdx, GRADE_WAIST_CM_PER_STEP);
+            double gLength = garmentCm(spec != null ? spec.getLengthCm() : null, body.lengthCm(), idx, medianIdx, GRADE_LENGTH_CM_PER_STEP);
+
+            AxisResult chest = axis("chest", body.chestCm(), gChest, W_CHEST, stretchFactor, toleranceScale);
+            AxisResult shoulder = axis("shoulder", body.shoulderCm(), gShoulder, W_SHOULDER, stretchFactor, toleranceScale);
+            AxisResult waist = axis("waist", body.waistCm(), gWaist, W_WAIST, stretchFactor, toleranceScale);
+            AxisResult length = axis("length", body.lengthCm(), gLength, W_LENGTH, stretchFactor, toleranceScale);
+
+            double baseScore = W_CHEST * chest.dimensionScore()
+                    + W_SHOULDER * shoulder.dimensionScore()
+                    + W_WAIST * waist.dimensionScore()
+                    + W_LENGTH * length.dimensionScore();
+            double score = clamp(baseScore + preferenceSilhouetteBonus(profile.getFitPreference(),
+                    product.getGarmentFitStyle() != null ? product.getGarmentFitStyle() : GarmentFitStyle.REGULAR), 0.0, 100.0);
+            candidates.add(new FitCheckCandidate(size, score, chest, shoulder, waist, length));
+        }
+
+        FitCheckCandidate selected = candidates.stream()
+                .filter(c -> c.size.equalsIgnoreCase(matchedSize))
+                .findFirst()
+                .orElseThrow(() -> new BadRequestException("Could not evaluate selected size."));
+        FitCheckCandidate best = candidates.stream()
+                .max(Comparator.comparingDouble(c -> c.score))
+                .orElse(selected);
+
+        int confidence = (int) Math.round(selected.score);
+        String fitBucket = fitBucket(confidence);
+        String tightLoose = classifyTightLoose(selected.chest, selected.shoulder, selected.waist);
+        List<String> issues = collectIssues(selected.chest, selected.shoulder, selected.waist, selected.length);
+
+        String fit;
+        if ("GOOD".equals(tightLoose)) {
+            fit = "GOOD";
+        } else if ("TIGHT".equals(tightLoose)) {
+            fit = "TIGHT";
+        } else {
+            fit = "LOOSE";
+        }
+
+        String message = switch (fit) {
+            case "GOOD" -> "This size will fit you comfortably (" + fitBucket + ").";
+            case "TIGHT" -> "This size may feel tight in key areas (" + fitBucket + ").";
+            default -> "This size may feel loose in key areas (" + fitBucket + ").";
+        };
+
+        UsualSizeFitAdjust usual = applyUsualSizeHints(profile, product, matchedSize, fit, message, issues);
+        fit = usual.fit();
+        message = usual.message();
+        issues = usual.issues();
+
+        return FitCheckResponseDTO.builder()
+                .fit(fit)
+                .confidence(confidence)
+                .message(message)
+                .issues(issues)
+                .suggestedSize(best.size)
+                .comparison(FitCheckComparisonDTO.builder()
+                        .chestDiff((int) Math.round(selected.chest.garment() - selected.chest.body()))
+                        .shoulderDiff((int) Math.round(selected.shoulder.garment() - selected.shoulder.body()))
+                        .bodyChestCm((int) Math.round(selected.chest.body()))
+                        .garmentChestCm((int) Math.round(selected.chest.garment()))
+                        .bodyShoulderCm((int) Math.round(selected.shoulder.body()))
+                        .garmentShoulderCm((int) Math.round(selected.shoulder.garment()))
+                        .bodyWaistCm((int) Math.round(selected.waist.body()))
+                        .garmentWaistCm((int) Math.round(selected.waist.garment()))
+                        .bodyLengthCm((int) Math.round(selected.length.body()))
+                        .garmentLengthCm((int) Math.round(selected.length.garment()))
+                        .build())
+                .build();
+    }
+
     private static List<SizeFitSuggestionDTO> emptySuggestions(List<String> sizes) {
         return sizes.stream()
                 .map(s -> SizeFitSuggestionDTO.builder().size(s).confidence(0).note("Body profile required for scoring.").build())
@@ -547,11 +659,267 @@ public class FitConfidenceService {
         return Math.max(lo, Math.min(hi, v));
     }
 
+    private static String fitBucket(int score) {
+        if (score > 85) return "EXCELLENT";
+        if (score > 70) return "GOOD";
+        if (score > 50) return "OK";
+        return "POOR";
+    }
+
+    private static String classifyTightLoose(AxisResult chest, AxisResult shoulder, AxisResult waist) {
+        int loose = 0;
+        int tight = 0;
+        for (AxisResult axis : List.of(chest, shoulder, waist)) {
+            double signedDiff = axis.garment - axis.body;
+            if (signedDiff > 5) loose++;
+            if (signedDiff < -5) tight++;
+        }
+        if (tight > loose && tight > 0) return "TIGHT";
+        if (loose > tight && loose > 0) return "LOOSE";
+        return "GOOD";
+    }
+
+    private static List<String> collectIssues(AxisResult chest, AxisResult shoulder, AxisResult waist, AxisResult length) {
+        List<String> issues = new ArrayList<>();
+        for (AxisResult axis : List.of(chest, shoulder, waist, length)) {
+            if ("GOOD".equals(axis.status)) continue;
+            String dir = "TIGHT".equals(axis.status) ? "tight" : "loose";
+            issues.add("Slightly " + dir + " on " + axis.name);
+        }
+        if (issues.isEmpty()) {
+            issues.add("Balanced fit across chest, shoulder, waist, and length");
+        }
+        return issues;
+    }
+
+    private record FitCheckCandidate(
+            String size,
+            double score,
+            AxisResult chest,
+            AxisResult shoulder,
+            AxisResult waist,
+            AxisResult length
+    ) {}
+
     private static double round2(double v) {
         return Math.round(v * 100.0) / 100.0;
     }
 
     private static double round4(double v) {
         return Math.round(v * 10000.0) / 10000.0;
+    }
+
+    /** Overrides fit label / message when selected size diverges from sizes the user saved on their body profile. */
+    private record UsualSizeFitAdjust(String fit, String message, List<String> issues) {}
+
+    private static UsualSizeFitAdjust applyUsualSizeHints(
+            BodyProfile profile,
+            Product product,
+            String matchedSize,
+            String fit,
+            String message,
+            List<String> issues) {
+        List<String> out = new ArrayList<>(issues);
+        String f = fit;
+        String m = message;
+        String blob = productTextBlob(product);
+
+        Integer usualP = profile.getUsualPantWaistInches();
+        Integer selNum = parseWaistInchesFromSizeLabel(matchedSize);
+        if (usualP != null && selNum != null && looksLikeBottomwear(blob)) {
+            int delta = selNum - usualP;
+            if (delta <= -2) {
+                f = "TIGHT";
+                m = String.format(Locale.US,
+                        "Compared to your usual pant waist (%d in), size %s is smaller — likely to feel tight.",
+                        usualP, matchedSize);
+                out.add(0, String.format(Locale.US,
+                        "You usually wear a %d in waist; this size (%d in) is %d in smaller.",
+                        usualP, selNum, -delta));
+            } else if (delta >= 2) {
+                f = "LOOSE";
+                m = String.format(Locale.US,
+                        "Compared to your usual pant waist (%d in), size %s is larger — likely loose or roomy.",
+                        usualP, matchedSize);
+                out.add(0, String.format(Locale.US,
+                        "You usually wear a %d in waist; this size (%d in) is %d in larger.",
+                        usualP, selNum, delta));
+            } else if (delta != 0) {
+                out.add(0, String.format(Locale.US,
+                        "Close to your usual waist (%d in): selected %d in (%+d).", usualP, selNum, delta));
+            }
+        } else {
+            String usualTop = profile.getUsualShirtSize();
+            if (usualTop != null && !usualTop.isBlank() && looksLikeTopwear(blob)) {
+                Integer uRank = letterSizeRank(usualTop.trim());
+                Integer sRank = letterSizeRank(matchedSize.trim());
+                if (uRank != null && sRank != null) {
+                    int delta = sRank - uRank;
+                    if (delta <= -1) {
+                        f = "TIGHT";
+                        m = String.format(Locale.US,
+                                "Your usual top size is %s; %s is smaller — likely tighter.",
+                                usualTop.trim().toUpperCase(Locale.ROOT), matchedSize);
+                        out.add(0, String.format("Your usual top: %s · selected: %s (smaller).", usualTop, matchedSize));
+                    } else if (delta >= 1) {
+                        f = "LOOSE";
+                        m = String.format(Locale.US,
+                                "Your usual top size is %s; %s is larger — more room.",
+                                usualTop.trim().toUpperCase(Locale.ROOT), matchedSize);
+                        out.add(0, String.format("Your usual top: %s · selected: %s (larger).", usualTop, matchedSize));
+                    }
+                }
+            }
+        }
+
+        String saree = profile.getSareeStyle();
+        if (saree != null && !saree.isBlank() && blob.contains("saree")) {
+            out.add("Your saved saree note: " + saree.trim() + ".");
+        }
+
+        String shoe = profile.getUsualShoeSize();
+        if (shoe != null && !shoe.isBlank() && looksLikeFootwear(blob)) {
+            out.add("Your usual shoe size on file: " + shoe.trim() + ".");
+        }
+
+        if (Boolean.TRUE.equals(profile.getPrefersFreeSize()) && blob.contains("free")) {
+            out.add("You noted a preference for free-size items.");
+        }
+
+        return new UsualSizeFitAdjust(f, m, out);
+    }
+
+    private static String productTextBlob(Product product) {
+        StringBuilder sb = new StringBuilder();
+        if (product.getName() != null) {
+            sb.append(product.getName().toLowerCase(Locale.ROOT));
+        }
+        Set<Category> cats = product.getCategories();
+        if (cats != null) {
+            for (Category c : cats) {
+                if (c.getName() != null) {
+                    sb.append(' ').append(c.getName().toLowerCase(Locale.ROOT));
+                }
+                if (c.getSlug() != null) {
+                    sb.append(' ').append(c.getSlug().toLowerCase(Locale.ROOT).replace('-', ' '));
+                }
+            }
+        }
+        return sb.toString();
+    }
+
+    private static boolean looksLikeBottomwear(String blob) {
+        return containsAny(blob,
+                "pant", "jean", "denim", "trouser", "chino", "jogger", "short", "legging", "skirt", "bottom");
+    }
+
+    private static boolean looksLikeTopwear(String blob) {
+        return containsAny(blob,
+                "shirt", "tee", "t-shirt", "tshirt", "top", "blouse", "kurta", "sweater", "hoodie", "polo",
+                "tank", "cami", "cardigan", "shrug");
+    }
+
+    private static boolean looksLikeFootwear(String blob) {
+        return containsAny(blob, "shoe", "sneaker", "sandal", "boot", "loafer", "footwear", "heel");
+    }
+
+    private static boolean containsAny(String haystack, String... needles) {
+        for (String n : needles) {
+            if (haystack.contains(n)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static final Pattern WAIST_INCH_PATTERN = Pattern.compile("(?i)(?:^|[\\s/\\-])(?:W)?(\\d{2})\\b");
+
+    private static Integer parseWaistInchesFromSizeLabel(String sizeLabel) {
+        if (sizeLabel == null || sizeLabel.isBlank()) {
+            return null;
+        }
+        String s = sizeLabel.trim();
+        Matcher matcher = WAIST_INCH_PATTERN.matcher(" " + s + " ");
+        while (matcher.find()) {
+            int n = Integer.parseInt(matcher.group(1));
+            if (n >= 20 && n <= 60) {
+                return n;
+            }
+        }
+        if (s.matches("\\d{1,2}")) {
+            int n = Integer.parseInt(s);
+            if (n >= 20 && n <= 60) {
+                return n;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Rank letter sizes for tops so we can compare profile “usual” size to the size selected on the PDP.
+     * Accepts common spellings (Small, Medium, 2XL, …).
+     */
+    private static Integer letterSizeRank(String raw) {
+        String u = canonicalLetterSizeToken(raw);
+        if (u == null || u.isEmpty()) {
+            return null;
+        }
+        return switch (u) {
+            case "XXXS", "3XS" -> -4;
+            case "XXS", "2XS" -> -3;
+            case "XS" -> -2;
+            case "S" -> -1;
+            case "M" -> 0;
+            case "L" -> 1;
+            case "XL" -> 2;
+            case "XXL", "2XL" -> 3;
+            case "XXXL", "3XL" -> 4;
+            case "4XL" -> 5;
+            case "5XL" -> 6;
+            default -> null;
+        };
+    }
+
+    /** Normalize free-text or PDP size labels to compact tokens (S, M, XL, 2XL, …). */
+    private static String canonicalLetterSizeToken(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String t = raw.trim().toUpperCase(Locale.ROOT).replaceAll("\\s+", " ").trim();
+        if (t.isEmpty()) {
+            return null;
+        }
+        if (t.equals("FREE") || t.equals("FREE SIZE") || t.equals("ONE SIZE") || t.equals("OS")) {
+            return null;
+        }
+        if (t.equals("SMALL") || t.equals("SM")) {
+            return "S";
+        }
+        if (t.equals("MEDIUM") || t.equals("MED") || t.equals("MD")) {
+            return "M";
+        }
+        if (t.equals("LARGE") || t.equals("LG")) {
+            return "L";
+        }
+        if (t.equals("EXTRA SMALL") || t.equals("EXTRA-SMALL") || t.equals("X-SMALL") || t.equals("XSMALL")) {
+            return "XS";
+        }
+        if (t.equals("EXTRA LARGE") || t.equals("EXTRA-LARGE") || t.equals("X-LARGE") || t.equals("XLARGE")) {
+            return "XL";
+        }
+        if (t.equals("DOUBLE EXTRA LARGE") || t.equals("DOUBLE XL") || t.equals("XX-LARGE") || t.equals("2X")
+                || t.equals("2 X")) {
+            return "XXL";
+        }
+        if (t.equals("TRIPLE EXTRA LARGE") || t.equals("TRIPLE XL") || t.equals("3X") || t.equals("3 X")) {
+            return "3XL";
+        }
+        if (t.equals("QUAD XL") || t.equals("4X") || t.equals("4 X")) {
+            return "4XL";
+        }
+        if (t.equals("5X") || t.equals("5 X")) {
+            return "5XL";
+        }
+        return t.replaceAll("[._\\s-]+", "");
     }
 }

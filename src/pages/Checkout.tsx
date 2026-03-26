@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
+import SafeProductImage from '@/components/SafeProductImage';
 import Layout from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -296,11 +297,13 @@ const Checkout = () => {
               <ul className="mt-5 divide-y divide-border">
                 {cart.map((item) => (
                   <li key={`${item.product.id}-${item.size}`} className="flex gap-3 py-4 first:pt-0">
-                    <img
-                      src={item.product.images[0]}
-                      alt=""
-                      className="h-20 w-16 shrink-0 rounded-md object-cover"
-                    />
+                    <div className="relative h-20 w-16 shrink-0 overflow-hidden rounded-md">
+                      <SafeProductImage
+                        urls={item.product.images ?? []}
+                        alt={item.product.name}
+                        className="absolute inset-0"
+                      />
+                    </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-foreground line-clamp-2">{item.product.name}</p>
                       <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xs text-muted-foreground">

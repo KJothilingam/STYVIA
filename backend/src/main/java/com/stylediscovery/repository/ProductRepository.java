@@ -45,5 +45,16 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
            "AND (LOWER(p.name) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
            "OR LOWER(p.brand) LIKE LOWER(CONCAT('%', :keyword, '%')))")
     Page<Product> searchProducts(@Param("keyword") String keyword, Pageable pageable);
+
+    /** Admin catalog: optional status filter and optional name/brand keyword (null keyword = no text filter). */
+    @Query("SELECT p FROM Product p WHERE " +
+           "(:status IS NULL OR p.status = :status) AND " +
+           "(:keyword IS NULL OR " +
+           "LOWER(p.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "LOWER(p.brand) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+    Page<Product> findForAdmin(
+            @Param("status") ProductStatus status,
+            @Param("keyword") String keyword,
+            Pageable pageable);
 }
 

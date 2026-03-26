@@ -54,6 +54,19 @@ public class BodyMeasurementEstimator {
             default -> { }
         }
 
+        if (p.getChestCm() != null && p.getChestCm() > 0) {
+            chest = p.getChestCm();
+        }
+        if (p.getWaistCm() != null && p.getWaistCm() > 0) {
+            waist = p.getWaistCm();
+        }
+        if (p.getShoulderCm() != null && p.getShoulderCm() > 0) {
+            shoulder = p.getShoulderCm();
+        }
+        if (p.getLengthCm() != null && p.getLengthCm() > 0) {
+            length = p.getLengthCm();
+        }
+
         return new EstimatedBody(chest, waist, shoulder, length);
     }
 

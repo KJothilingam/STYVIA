@@ -3,6 +3,7 @@ import { Heart } from 'lucide-react';
 import { Product } from '@/types';
 import { useStore } from '@/context/StoreContext';
 import { cn } from '@/lib/utils';
+import SafeProductImage from '@/components/SafeProductImage';
 
 interface ProductCardProps {
   product: Product;
@@ -33,10 +34,11 @@ const ProductCard = ({ product, className }: ProductCardProps) => {
     >
       {/* Image Container */}
       <div className="relative aspect-[3/4] overflow-hidden bg-secondary">
-        <img
-          src={product.images[0]}
+        <SafeProductImage
+          urls={product.images ?? []}
           alt={product.name}
-          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+          className="absolute inset-0"
+          classNameImg="transition-transform duration-300 group-hover:scale-105"
         />
 
         {/* Wishlist Button */}

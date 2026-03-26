@@ -49,6 +49,12 @@
     --styvia-success: 145 63% 42%;
     --styvia-discount: 348 83% 47%;
 
+    /* Body intelligence strip / fit UI (HSL components, no hsl() wrapper) */
+    --intelligence-deep: 262 58% 22%;
+    --intelligence-mid: 262 48% 38%;
+    --intelligence-accent: 187 70% 38%;
+    --intelligence-glow: 220 35% 92%;
+
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 0 0% 26%;
     --sidebar-primary: 0 0% 10%;
@@ -104,6 +110,11 @@
     --sidebar-accent-foreground: 0 0% 96%;
     --sidebar-border: 0 0% 16%;
     --sidebar-ring: 348 83% 55%;
+
+    --intelligence-deep: 262 45% 72%;
+    --intelligence-mid: 262 35% 65%;
+    --intelligence-accent: 187 55% 52%;
+    --intelligence-glow: 220 25% 88%;
   }
 }
 

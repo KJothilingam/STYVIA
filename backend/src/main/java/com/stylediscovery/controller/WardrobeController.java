@@ -1,5 +1,6 @@
 package com.stylediscovery.controller;
 
+import com.stylediscovery.dto.AddWardrobeFromProductRequest;
 import com.stylediscovery.dto.ApiResponse;
 import com.stylediscovery.dto.WardrobeItemDTO;
 import com.stylediscovery.dto.WardrobeLogRequest;
@@ -30,6 +31,21 @@ public class WardrobeController {
     @PostMapping("/sync")
     public ResponseEntity<ApiResponse<List<WardrobeItemDTO>>> sync(@AuthenticationPrincipal UserPrincipal user) {
         return ResponseEntity.ok(ApiResponse.success(wardrobeService.syncFromOrders(user.getId())));
+    }
+
+    @PostMapping("/from-product/{productId}")
+    public ResponseEntity<ApiResponse<WardrobeItemDTO>> addFromProduct(
+            @AuthenticationPrincipal UserPrincipal user,
+            @PathVariable Long productId,
+            @Valid @RequestBody AddWardrobeFromProductRequest body) {
+        WardrobeItemDTO dto = wardrobeService.addFromProduct(
+                user.getId(),
+                productId,
+                body.getSize(),
+                body.getColor(),
+                body.getFitConfidence(),
+                body.getQuantity());
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(dto));
     }
 
     @PostMapping("/from-order-item/{orderItemId}")

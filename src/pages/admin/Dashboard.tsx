@@ -1,6 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { format, subDays } from 'date-fns';
+import {
+  eachWeekOfInterval,
+  endOfWeek,
+  format,
+  isBefore,
+  isWithinInterval,
+  parseISO,
+  startOfDay,
+  startOfWeek,
+  subWeeks,
+} from 'date-fns';
 import {
   Area,
   AreaChart,
@@ -35,7 +45,15 @@ import adminService, {
   type AdminOrderSummary,
   type DashboardStats,
 } from '@/services/adminService';
-import { Package, ShoppingCart, Users, IndianRupee, ArrowRight, HeartHandshake } from 'lucide-react';
+import {
+  Package,
+  ShoppingCart,
+  Users,
+  IndianRupee,
+  ArrowRight,
+  HeartHandshake,
+  PieChart as PieChartIcon,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 function formatInr(n: number) {
@@ -46,25 +64,74 @@ function formatInr(n: number) {
   }).format(n);
 }
 
-function buildSevenDaySeries(orders: AdminOrderSummary[]) {
-  const today = new Date();
-  const days: { key: string; label: string; revenue: number; orders: number }[] = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = subDays(today, i);
-    const key = format(d, 'yyyy-MM-dd');
-    days.push({ key, label: format(d, 'EEE d'), revenue: 0, orders: 0 });
+/** Illustrative weekly totals for completed weeks (~6 months back). Current week uses API orders only. */
+const DEMO_WEEKLY_REVENUE: number[] = [
+  11800, 13250, 14100, 12800, 15600, 14900, 16750, 17200, 15900, 18400, 17800, 19200, 18650, 20100,
+  19500, 20800, 21400, 19900, 22300, 21800, 23100, 22600, 23900, 24200, 25100, 24800,
+];
+
+const DEMO_WEEKLY_ORDERS: number[] = [
+  42, 48, 51, 46, 56, 53, 59, 61, 57, 65, 63, 68, 66, 71, 69, 74, 77, 72, 80, 78, 83, 81, 86, 84, 89, 87,
+];
+
+function parseOrderDate(o: AdminOrderSummary): Date | null {
+  if (!o.createdAt) return null;
+  try {
+    const d = parseISO(o.createdAt);
+    return Number.isNaN(d.getTime()) ? null : d;
+  } catch {
+    return null;
   }
-  const map = new Map(days.map((x) => [x.key, x]));
-  for (const o of orders) {
-    if (!o.createdAt) continue;
-    const key = o.createdAt.slice(0, 10);
-    const row = map.get(key);
-    if (row) {
-      row.revenue += Number(o.totalAmount);
-      row.orders += 1;
+}
+
+type WeeklyChartRow = {
+  key: string;
+  label: string;
+  revenue: number;
+  orders: number;
+  /** false = values from live orders for this week */
+  isDemo: boolean;
+};
+
+/**
+ * ~26 weeks (6 months): weeks that already ended before today → hardcoded demo curve.
+ * The calendar week that contains today → summed from `orders` (database).
+ */
+function buildHybridWeeklySeries(orders: AdminOrderSummary[]): WeeklyChartRow[] {
+  const startOfToday = startOfDay(new Date());
+  const thisWeekMonday = startOfWeek(startOfToday, { weekStartsOn: 1 });
+  const firstMonday = startOfWeek(subWeeks(thisWeekMonday, 25), { weekStartsOn: 1 });
+
+  const weekStarts = eachWeekOfInterval({ start: firstMonday, end: thisWeekMonday });
+
+  return weekStarts.map((ws, idx) => {
+    const we = endOfWeek(ws, { weekStartsOn: 1 });
+    const key = format(ws, 'yyyy-MM-dd');
+    const label = format(ws, 'MMM d');
+    const weekFullyBeforeToday = isBefore(we, startOfToday);
+
+    if (weekFullyBeforeToday) {
+      return {
+        key,
+        label,
+        revenue: DEMO_WEEKLY_REVENUE[idx] ?? DEMO_WEEKLY_REVENUE[DEMO_WEEKLY_REVENUE.length - 1],
+        orders: DEMO_WEEKLY_ORDERS[idx] ?? DEMO_WEEKLY_ORDERS[DEMO_WEEKLY_ORDERS.length - 1],
+        isDemo: true,
+      };
     }
-  }
-  return days;
+
+    let revenue = 0;
+    let count = 0;
+    for (const o of orders) {
+      const d = parseOrderDate(o);
+      if (!d) continue;
+      if (isWithinInterval(d, { start: ws, end: we })) {
+        revenue += Number(o.totalAmount);
+        count += 1;
+      }
+    }
+    return { key, label, revenue, orders: count, isDemo: false };
+  });
 }
 
 const revenueChartConfig = {
@@ -98,6 +165,31 @@ const PIE_COLORS = [
   'hsl(0 84% 60%)',
 ];
 
+/** Demo-only: revenue share by catalog section (replace with API when available). */
+const DEMO_CATEGORY_SALES = [
+  { name: 'womens', label: "Women's", value: 4_280_000 },
+  { name: 'mens', label: "Men's", value: 3_150_000 },
+  { name: 'kids', label: "Kids'", value: 1_520_000 },
+  { name: 'accessories', label: 'Accessories', value: 980_000 },
+] as const;
+
+const DEMO_CATEGORY_SALES_TOTAL = DEMO_CATEGORY_SALES.reduce((s, r) => s + r.value, 0);
+
+const CATEGORY_PIE_COLORS = [
+  'hsl(330 70% 52%)',
+  'hsl(215 78% 48%)',
+  'hsl(45 93% 48%)',
+  'hsl(262 48% 52%)',
+] as const;
+
+const categoryPieConfig = DEMO_CATEGORY_SALES.reduce<ChartConfig>((c, row, i) => {
+  c[row.name] = {
+    label: row.label,
+    color: CATEGORY_PIE_COLORS[i % CATEGORY_PIE_COLORS.length],
+  };
+  return c;
+}, {});
+
 const Dashboard = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [orders, setOrders] = useState<AdminOrderSummary[]>([]);
@@ -110,7 +202,7 @@ const Dashboard = () => {
       try {
         const [s, page] = await Promise.all([
           adminService.getDashboardStats(),
-          adminService.getAllOrders(undefined, 0, 120),
+          adminService.getAllOrders(undefined, 0, 500),
         ]);
         if (!cancelled) {
           setStats(s);
@@ -131,7 +223,7 @@ const Dashboard = () => {
     };
   }, []);
 
-  const series7d = useMemo(() => buildSevenDaySeries(orders), [orders]);
+  const chartSeries = useMemo(() => buildHybridWeeklySeries(orders), [orders]);
 
   const statusPieData = useMemo(() => {
     if (!stats) return [];
@@ -157,18 +249,22 @@ const Dashboard = () => {
 
   if (loading) {
     return (
-      <div className="p-6 space-y-6">
-        <div className="h-8 w-48 bg-muted animate-pulse rounded-md" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="p-4 sm:p-6 lg:p-8 pb-10 max-w-[1600px] mx-auto space-y-8">
+        <div className="h-24 sm:h-28 bg-muted animate-pulse rounded-2xl" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-28 bg-muted animate-pulse rounded-xl" />
+            <div key={i} className="h-32 bg-muted animate-pulse rounded-2xl" />
           ))}
         </div>
-        <div className="grid lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 h-80 bg-muted animate-pulse rounded-xl" />
-          <div className="h-80 bg-muted animate-pulse rounded-xl" />
+        <div className="grid xl:grid-cols-12 gap-6">
+          <div className="xl:col-span-7 h-[340px] bg-muted animate-pulse rounded-2xl" />
+          <div className="xl:col-span-5 flex flex-col gap-6">
+            <div className="h-[300px] bg-muted animate-pulse rounded-2xl" />
+            <div className="h-[300px] bg-muted animate-pulse rounded-2xl" />
+          </div>
         </div>
-        <div className="h-64 bg-muted animate-pulse rounded-xl" />
+        <div className="h-[260px] bg-muted animate-pulse rounded-2xl" />
+        <div className="h-72 bg-muted animate-pulse rounded-2xl" />
       </div>
     );
   }
@@ -182,10 +278,22 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="p-6 space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Orders, revenue, catalog, and customers at a glance.</p>
+    <div className="p-4 sm:p-6 lg:p-8 pb-10 max-w-[1600px] mx-auto space-y-8">
+      <div className="relative overflow-hidden rounded-2xl border border-border/70 bg-card/90 shadow-sm px-5 py-6 sm:px-7 sm:py-7">
+        <div
+          className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/[0.07] via-transparent to-[hsl(262_45%_48%)]/[0.08]"
+          aria-hidden
+        />
+        <div className="relative">
+          <span className="mb-3 inline-flex items-center rounded-full border border-border/60 bg-background/80 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Admin overview
+          </span>
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Dashboard</h1>
+          <p className="mt-2 max-w-2xl text-sm text-muted-foreground sm:text-base">
+            Orders, revenue, catalog, and customers at a glance. Charts combine sample history with live data where
+            noted.
+          </p>
+        </div>
       </div>
 
       {/* KPI row — Orders, Revenue, Users, Products */}
@@ -195,24 +303,28 @@ const Dashboard = () => {
           value={stats.totalOrders.toLocaleString()}
           icon={ShoppingCart}
           accent="bg-[hsl(var(--primary))]"
+          iconClass="bg-primary/15 text-primary"
         />
         <MetricCard
           title="Revenue"
           value={formatInr(stats.totalRevenue)}
           icon={IndianRupee}
           accent="bg-emerald-500"
+          iconClass="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
         />
         <MetricCard
           title="Users"
           value={stats.totalUsers.toLocaleString()}
           icon={Users}
           accent="bg-[hsl(262_45%_48%)]"
+          iconClass="bg-[hsl(262_45%_48%)]/15 text-[hsl(262_45%_48%)]"
         />
         <MetricCard
           title="Products"
           value={stats.totalProducts.toLocaleString()}
           icon={Package}
-          accent="bg-[hsl(45_93%_48%)]"
+          accent="bg-amber-500"
+          iconClass="bg-amber-500/15 text-amber-700 dark:text-amber-400"
         />
       </div>
 
@@ -225,7 +337,7 @@ const Dashboard = () => {
         if (p > 0) parts.push(`${p} pickup${p === 1 ? '' : 's'}`);
         if (b > 0) parts.push(`${b} empty box${b === 1 ? '' : 'es'}`);
         return (
-          <Card className="border-amber-200 bg-amber-50/90 dark:bg-amber-950/25 dark:border-amber-900 shadow-sm">
+          <Card className="rounded-2xl border-amber-200 bg-amber-50/90 dark:bg-amber-950/25 dark:border-amber-900 shadow-sm">
             <CardContent className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 py-4">
               <div className="flex items-start gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/20 text-amber-900 dark:text-amber-200">
@@ -251,16 +363,22 @@ const Dashboard = () => {
         );
       })()}
 
-      {/* Charts */}
-      <div className="grid lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2 border-border/80 shadow-sm overflow-hidden">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Revenue</CardTitle>
-            <CardDescription>Last 7 days from recent orders</CardDescription>
-          </CardHeader>
-          <CardContent className="pl-0 pr-2 pt-0">
-            <ChartContainer config={revenueChartConfig} className="h-[280px] w-full aspect-auto">
-              <AreaChart data={series7d} margin={{ left: 8, right: 8, top: 8, bottom: 0 }}>
+      <div className="space-y-3">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Analytics</h2>
+        <div className="grid xl:grid-cols-12 gap-6">
+          <Card className="xl:col-span-7 rounded-2xl border-border/70 shadow-sm overflow-hidden">
+            <CardHeader className="space-y-1 pb-2 px-5 sm:px-6 pt-5">
+              <CardTitle className="text-lg">Revenue</CardTitle>
+              <CardDescription>
+                ~6 months by week — sample trend for past weeks; this week from live orders
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pl-0 pr-2 pt-0 pb-5">
+              <p className="text-[11px] text-muted-foreground px-4 sm:px-6 pb-2">
+                Completed weeks show illustrative values. The week that includes today uses your database.
+              </p>
+              <ChartContainer config={revenueChartConfig} className="h-[280px] w-full aspect-auto">
+              <AreaChart data={chartSeries} margin={{ left: 8, right: 8, top: 8, bottom: 0 }}>
                 <defs>
                   <linearGradient id="fillRevenue" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.35} />
@@ -268,7 +386,14 @@ const Dashboard = () => {
                   </linearGradient>
                 </defs>
                 <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-border/60" />
-                <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} />
+                <XAxis
+                  dataKey="label"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  interval={2}
+                  tick={{ fontSize: 10 }}
+                />
                 <YAxis
                   tickLine={false}
                   axisLine={false}
@@ -294,54 +419,122 @@ const Dashboard = () => {
                   fill="url(#fillRevenue)"
                 />
               </AreaChart>
-            </ChartContainer>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/80 shadow-sm overflow-hidden">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Orders by status</CardTitle>
-            <CardDescription>Share of all orders</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col items-center pt-0">
-            {statusPieData.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-16">No order data yet.</p>
-            ) : (
-              <ChartContainer config={pieConfig} className="h-[260px] w-full max-w-[280px] aspect-square mx-auto">
-                <PieChart>
-                  <ChartTooltip content={<ChartTooltipContent hideLabel />} />
-                  <Pie
-                    data={statusPieData}
-                    dataKey="value"
-                    nameKey="name"
-                    innerRadius={56}
-                    outerRadius={88}
-                    paddingAngle={2}
-                    strokeWidth={2}
-                    stroke="hsl(var(--background))"
-                  >
-                    {statusPieData.map((entry, index) => (
-                      <Cell key={entry.name} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <ChartLegend content={<ChartLegendContent nameKey="name" />} />
-                </PieChart>
               </ChartContainer>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+          <div className="xl:col-span-5 flex flex-col gap-6">
+            <Card className="rounded-2xl border-border/70 shadow-sm overflow-hidden flex flex-col flex-1">
+              <CardHeader className="space-y-1 pb-2 px-5 pt-5">
+                <CardTitle className="text-base">Orders by status</CardTitle>
+                <CardDescription>Live share from all orders</CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col items-center pt-0 pb-5 px-3 flex-1 justify-center">
+                {statusPieData.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-12 text-center px-4">No order data yet.</p>
+                ) : (
+                  <ChartContainer config={pieConfig} className="h-[240px] w-full max-w-[260px] aspect-square mx-auto">
+                    <PieChart>
+                      <ChartTooltip content={<ChartTooltipContent hideLabel />} />
+                      <Pie
+                        data={statusPieData}
+                        dataKey="value"
+                        nameKey="name"
+                        innerRadius={52}
+                        outerRadius={82}
+                        paddingAngle={2}
+                        strokeWidth={2}
+                        stroke="hsl(var(--background))"
+                      >
+                        {statusPieData.map((entry, index) => (
+                          <Cell key={entry.name} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <ChartLegend
+                        content={<ChartLegendContent nameKey="name" className="flex-wrap gap-x-3 gap-y-1" />}
+                      />
+                    </PieChart>
+                  </ChartContainer>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-2xl border-border/70 shadow-sm overflow-hidden flex flex-col flex-1">
+              <CardHeader className="space-y-1 pb-2 px-5 pt-5">
+                <div className="flex items-center gap-2">
+                  <PieChartIcon className="h-4 w-4 text-muted-foreground shrink-0" aria-hidden />
+                  <CardTitle className="text-base">Sales by category</CardTitle>
+                </div>
+                <CardDescription>Revenue mix by section — sample data for now</CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col items-center pt-0 pb-5 px-3 flex-1 justify-center">
+                <ChartContainer
+                  config={categoryPieConfig}
+                  className="h-[240px] w-full max-w-[260px] aspect-square mx-auto"
+                >
+                  <PieChart>
+                    <ChartTooltip
+                      content={
+                        <ChartTooltipContent
+                          formatter={(value, _name, _item, _idx, payload) => {
+                            const p = (payload ?? {}) as { label?: string };
+                            const v = Number(value);
+                            const pct = ((v / DEMO_CATEGORY_SALES_TOTAL) * 100).toFixed(1);
+                            return (
+                              <div className="flex w-full min-w-[11rem] flex-wrap items-center justify-between gap-2 text-xs">
+                                <span className="text-muted-foreground">{p.label ?? '—'}</span>
+                                <span className="font-mono font-medium tabular-nums text-foreground">
+                                  {formatInr(v)}{' '}
+                                  <span className="font-normal text-muted-foreground">({pct}%)</span>
+                                </span>
+                              </div>
+                            );
+                          }}
+                        />
+                      }
+                    />
+                    <Pie
+                      data={[...DEMO_CATEGORY_SALES]}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={52}
+                      outerRadius={82}
+                      paddingAngle={2}
+                      strokeWidth={2}
+                      stroke="hsl(var(--background))"
+                    >
+                      {DEMO_CATEGORY_SALES.map((entry, index) => (
+                        <Cell key={entry.name} fill={CATEGORY_PIE_COLORS[index % CATEGORY_PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <ChartLegend
+                      content={<ChartLegendContent nameKey="name" className="flex-wrap gap-x-3 gap-y-1" />}
+                    />
+                  </PieChart>
+                </ChartContainer>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
 
-      <Card className="border-border/80 shadow-sm overflow-hidden">
-        <CardHeader className="pb-2">
+      <Card className="rounded-2xl border-border/70 shadow-sm overflow-hidden">
+        <CardHeader className="space-y-1 pb-2 px-5 sm:px-6 pt-5">
           <CardTitle className="text-lg">Order volume</CardTitle>
-          <CardDescription>Count per day (last 7 days)</CardDescription>
+          <CardDescription>Orders per week — same demo / live split as revenue</CardDescription>
         </CardHeader>
-        <CardContent className="pl-0 pr-2">
-          <ChartContainer config={ordersBarConfig} className="h-[200px] w-full aspect-auto">
-            <BarChart data={series7d} margin={{ left: 8, right: 8, top: 8, bottom: 0 }}>
+        <CardContent className="pl-0 pr-2 pb-5">
+          <ChartContainer config={ordersBarConfig} className="h-[220px] w-full aspect-auto">
+            <BarChart data={chartSeries} margin={{ left: 8, right: 8, top: 8, bottom: 0 }}>
               <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-border/60" />
-              <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} />
+              <XAxis
+                dataKey="label"
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
+                interval={2}
+                tick={{ fontSize: 10 }}
+              />
               <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={32} />
               <ChartTooltip content={<ChartTooltipContent />} />
               <Bar dataKey="orders" fill="var(--color-orders)" radius={[6, 6, 0, 0]} maxBarSize={48} />
@@ -351,8 +544,8 @@ const Dashboard = () => {
       </Card>
 
       {/* Recent orders */}
-      <Card className="border-border/80 shadow-sm">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+      <Card className="rounded-2xl border-border/70 shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 px-5 sm:px-6 pt-5">
           <div>
             <CardTitle className="text-lg">Recent orders</CardTitle>
             <CardDescription>Newest first</CardDescription>
@@ -433,22 +626,31 @@ function MetricCard({
   value,
   icon: Icon,
   accent,
+  iconClass,
 }: {
   title: string;
   value: string;
   icon: React.ComponentType<{ className?: string }>;
   accent: string;
+  iconClass: string;
 }) {
   return (
-    <Card className="relative overflow-hidden border-border/80 shadow-sm">
+    <Card className="relative overflow-hidden rounded-2xl border-border/70 bg-card/80 shadow-sm transition-all duration-200 hover:border-border hover:shadow-md">
       <div className={cn('absolute left-0 top-0 bottom-0 w-1', accent)} aria-hidden />
       <CardContent className="p-5 pl-6">
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">{title}</p>
-            <p className="text-2xl font-bold tracking-tight mt-1 tabular-nums">{value}</p>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
+            <p className="mt-2 text-3xl font-bold tracking-tight tabular-nums">{value}</p>
           </div>
-          <Icon className="h-10 w-10 text-muted-foreground/15 shrink-0" strokeWidth={1.25} />
+          <div
+            className={cn(
+              'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl [&_svg]:shrink-0',
+              iconClass,
+            )}
+          >
+            <Icon className="h-5 w-5" strokeWidth={2} />
+          </div>
         </div>
       </CardContent>
     </Card>

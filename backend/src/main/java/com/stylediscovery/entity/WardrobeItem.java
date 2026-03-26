@@ -36,11 +36,22 @@ public class WardrobeItem {
     @Column(name = "product_name", nullable = false, length = 500)
     private String productName;
 
-    @Column(nullable = false, length = 16)
+    @Column(nullable = false, length = 48)
     private String size;
 
     @Column(nullable = false, length = 100)
     private String color;
+
+    /** Pieces tracked for this row (manual merges or order line quantity). */
+    @Column(nullable = false)
+    @Builder.Default
+    private Integer quantity = 1;
+
+    /**
+     * When set, this row was created from that order line — avoids duplicate imports on sync / re-place.
+     */
+    @Column(name = "source_order_item_id", unique = true)
+    private Long sourceOrderItemId;
 
     @Column(name = "image_url", length = 1000)
     private String imageUrl;

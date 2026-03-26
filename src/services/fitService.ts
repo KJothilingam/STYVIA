@@ -85,6 +85,28 @@ export interface OutfitRecommendationDTO {
   filteringNote?: string;
 }
 
+export interface FitCheckComparisonDetail {
+  chestDiff: number;
+  shoulderDiff: number;
+  bodyChestCm: number;
+  garmentChestCm: number;
+  bodyShoulderCm: number;
+  garmentShoulderCm: number;
+  bodyWaistCm: number;
+  garmentWaistCm: number;
+  bodyLengthCm: number;
+  garmentLengthCm: number;
+}
+
+export interface FitCheckResponse {
+  fit: 'GOOD' | 'TIGHT' | 'LOOSE';
+  confidence: number;
+  message: string;
+  issues: string[];
+  suggestedSize: string;
+  comparison?: FitCheckComparisonDetail;
+}
+
 const fitService = {
   async getFitConfidence(productId: number): Promise<FitConfidenceResponse> {
     const res = await api.get<{ data: FitConfidenceResponse }>(`/products/${productId}/fit-confidence`);
@@ -93,6 +115,11 @@ const fitService = {
 
   async getOutfitRecommendation(productId: number): Promise<OutfitRecommendationDTO> {
     const res = await api.get<{ data: OutfitRecommendationDTO }>(`/products/${productId}/outfit`);
+    return res.data.data;
+  },
+
+  async checkFit(productId: number, size: string): Promise<FitCheckResponse> {
+    const res = await api.post<{ data: FitCheckResponse }>('/fit/check', { productId, size });
     return res.data.data;
   },
 };

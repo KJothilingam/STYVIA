@@ -12,6 +12,8 @@ import com.stylediscovery.enums.StretchLevel;
 import com.stylediscovery.exception.ResourceNotFoundException;
 import com.stylediscovery.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,6 +38,13 @@ public class AdminProductService {
     private final GarmentSizeSpecRepository garmentSizeSpecRepository;
     private final ProductService productService;
     private final CatalogCacheEvictionService catalogCacheEvictionService;
+
+    @Transactional(readOnly = true)
+    public Page<ProductDTO> list(ProductStatus status, String keyword, Pageable pageable) {
+        String kw = (keyword != null && !keyword.isBlank()) ? keyword.trim() : null;
+        return productRepository.findForAdmin(status, kw, pageable)
+                .map(p -> productService.getProductById(p.getId()));
+    }
 
     @Transactional
     public ProductDTO create(AdminCreateProductRequest req) {
@@ -93,6 +102,13 @@ public class AdminProductService {
         if (patch.containsKey("name")) p.setName(String.valueOf(patch.get("name")));
         if (patch.containsKey("brand")) p.setBrand(String.valueOf(patch.get("brand")));
         if (patch.containsKey("price")) p.setPrice(new BigDecimal(patch.get("price").toString()));
+        if (patch.containsKey("originalPrice") && patch.get("originalPrice") != null) {
+            p.setOriginalPrice(new BigDecimal(patch.get("originalPrice").toString()));
+        }
+        if (patch.containsKey("discountPercentage") && patch.get("discountPercentage") != null) {
+            Object d = patch.get("discountPercentage");
+            p.setDiscountPercentage(d instanceof Number ? ((Number) d).intValue() : Integer.parseInt(d.toString()));
+        }
         if (patch.containsKey("description")) p.setDescription(patch.get("description") != null ? String.valueOf(patch.get("description")) : null);
         if (patch.containsKey("material")) p.setMaterial(patch.get("material") != null ? String.valueOf(patch.get("material")) : null);
         if (patch.containsKey("gender") && patch.get("gender") != null) {
@@ -103,6 +119,9 @@ public class AdminProductService {
         }
         if (patch.containsKey("garmentFitStyle") && patch.get("garmentFitStyle") != null) {
             p.setGarmentFitStyle(GarmentFitStyle.valueOf(String.valueOf(patch.get("garmentFitStyle"))));
+        }
+        if (patch.containsKey("status") && patch.get("status") != null) {
+            p.setStatus(ProductStatus.valueOf(String.valueOf(patch.get("status"))));
         }
         productRepository.save(p);
         catalogCacheEvictionService.evictProductAndFit(productId);

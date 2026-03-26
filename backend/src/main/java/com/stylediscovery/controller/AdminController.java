@@ -130,36 +130,5 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success("Order status updated", orderDTO));
     }
 
-    /**
-     * Get all users
-     */
-    @GetMapping("/users")
-    public ResponseEntity<ApiResponse<?>> getAllUsers(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        
-        Pageable pageable = PageRequest.of(page, size);
-        var users = userRepository.findAll(pageable);
-        
-        return ResponseEntity.ok(ApiResponse.success(users));
-    }
-
-    /**
-     * Disable/Enable user
-     */
-    @PutMapping("/users/{userId}/status")
-    public ResponseEntity<ApiResponse<String>> updateUserStatus(
-            @PathVariable Long userId,
-            @RequestParam Boolean isActive) {
-        
-        var user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-        
-        user.setIsActive(isActive);
-        userRepository.save(user);
-        
-        String message = isActive ? "User activated" : "User deactivated";
-        return ResponseEntity.ok(ApiResponse.success(message, null));
-    }
 }
 

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
-import { Package, ChevronRight, ImageOff } from 'lucide-react';
+import { Package, ChevronRight } from 'lucide-react';
+import SafeProductImage from '@/components/SafeProductImage';
 import Layout from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/context/StoreContext';
@@ -92,16 +93,15 @@ const Orders = () => {
               {/* Order Items */}
               <div className="space-y-3">
                 {order.items.map((item) => {
-                  const thumb = item.product.images?.[0];
                   const pid = item.product.id;
                   const rowInner = (
                     <>
-                      <div className="w-20 h-24 rounded-md border border-border/60 bg-muted/40 shrink-0 overflow-hidden flex items-center justify-center">
-                        {thumb ? (
-                          <img src={thumb} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <ImageOff className="w-7 h-7 text-muted-foreground/50" aria-hidden />
-                        )}
+                      <div className="relative h-24 w-20 shrink-0 overflow-hidden rounded-md border border-border/60 bg-muted/40">
+                        <SafeProductImage
+                          urls={item.product.images ?? []}
+                          alt={item.product.name}
+                          className="absolute inset-0"
+                        />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-bold truncate">{item.product.brand}</p>

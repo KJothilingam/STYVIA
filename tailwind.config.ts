@@ -73,6 +73,12 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        intelligence: {
+          deep: "hsl(var(--intelligence-deep))",
+          mid: "hsl(var(--intelligence-mid))",
+          accent: "hsl(var(--intelligence-accent))",
+          glow: "hsl(var(--intelligence-glow))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
