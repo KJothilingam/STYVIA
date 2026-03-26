@@ -16,11 +16,19 @@ import Profile from "./pages/Profile";
 import Checkout from "./pages/Checkout";
 import OrderConfirmation from "./pages/OrderConfirmation";
 import Orders from "./pages/Orders";
+import Wardrobe from "./pages/Wardrobe";
+import FitStudio from "./pages/FitStudio";
 import NotFound from "./pages/NotFound";
 import AdminDashboard from "./pages/admin/Dashboard";
 import AdminOrders from "./pages/admin/Orders";
 import AdminProducts from "./pages/admin/Products";
 import AdminUsers from "./pages/admin/Users";
+import AdminDonations from "./pages/admin/Donations";
+import Donations from "./pages/Donations";
+import DonationBox from "./pages/DonationBox";
+import NearbyStores from "./pages/NearbyStores";
+import DonationDropVerify from "./pages/DonationDropVerify";
+import { ShopAssistant } from "@/components/assistant/ShopAssistant";
 
 const queryClient = new QueryClient();
 
@@ -31,19 +39,26 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          <ShopAssistant />
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={<Index />} />
             <Route path="/products" element={<Products />} />
             <Route path="/product/:id" element={<ProductDetail />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/donation-drop/:token" element={<DonationDropVerify />} />
 
             {/* Protected Routes */}
+            <Route path="/fit-studio/:productId" element={<ProtectedRoute><FitStudio /></ProtectedRoute>} />
             <Route path="/cart" element={<ProtectedRoute><Cart /></ProtectedRoute>} />
             <Route path="/wishlist" element={<ProtectedRoute><Wishlist /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
             <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
+            <Route path="/wardrobe" element={<ProtectedRoute><Wardrobe /></ProtectedRoute>} />
+            <Route path="/donations" element={<ProtectedRoute><Donations /></ProtectedRoute>} />
+            <Route path="/donation-box" element={<ProtectedRoute><DonationBox /></ProtectedRoute>} />
+            <Route path="/shops" element={<ProtectedRoute><NearbyStores /></ProtectedRoute>} />
             <Route path="/order-confirmation/:orderId" element={<ProtectedRoute><OrderConfirmation /></ProtectedRoute>} />
 
             {/* Admin Routes */}
@@ -52,6 +67,7 @@ const App = () => (
               <Route path="orders" element={<AdminOrders />} />
               <Route path="products" element={<AdminProducts />} />
               <Route path="users" element={<AdminUsers />} />
+              <Route path="donations" element={<AdminDonations />} />
             </Route>
 
             {/* 404 */}

@@ -6,7 +6,9 @@ import path from "path";
 export default defineConfig({
   server: {
     host: "::",
-    port: 8080,
+    /** Keep frontend separate from Spring Boot (8080) */
+    port: 5173,
+    strictPort: false,
     hmr: {
       overlay: false,
     },

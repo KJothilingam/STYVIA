@@ -1,7 +1,9 @@
 package com.stylediscovery.dto;
 
+import com.stylediscovery.enums.GarmentFitStyle;
 import com.stylediscovery.enums.Gender;
 import com.stylediscovery.enums.ProductStatus;
+import com.stylediscovery.enums.StretchLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -28,6 +30,8 @@ public class ProductDTO {
     private BigDecimal rating;
     private Integer reviewCount;
     private ProductStatus status;
+    private StretchLevel stretchLevel;
+    private GarmentFitStyle garmentFitStyle;
     private List<String> images;
     private List<String> sizes;
     private List<ColorDTO> colors;

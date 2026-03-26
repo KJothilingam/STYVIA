@@ -86,6 +86,10 @@ uploads/
 # Docker
 .docker/
 
+# ML service
+ml-service/.venv/
+ml-service/models/*.joblib
+
 # Misc
 *.swp
 *.bak

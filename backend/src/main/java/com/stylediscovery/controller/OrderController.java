@@ -4,8 +4,10 @@ import com.stylediscovery.dto.ApiResponse;
 import com.stylediscovery.dto.OrderDTO;
 import com.stylediscovery.dto.PlaceOrderRequest;
 import com.stylediscovery.security.UserPrincipal;
+import com.stylediscovery.service.FitLearningWriteService;
 import com.stylediscovery.service.OrderService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -13,6 +15,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -21,6 +24,7 @@ import org.springframework.web.bind.annotation.*;
 public class OrderController {
 
     private final OrderService orderService;
+    private final FitLearningWriteService fitLearningWriteService;
 
     @PostMapping("/place")
     public ResponseEntity<ApiResponse<OrderDTO>> placeOrder(
@@ -45,7 +49,7 @@ public class OrderController {
     @GetMapping("/{orderId}")
     public ResponseEntity<ApiResponse<OrderDTO>> getOrderById(
             @AuthenticationPrincipal UserPrincipal currentUser,
-            @PathVariable Long orderId) {
+            @PathVariable @Positive Long orderId) {
         OrderDTO order = orderService.getOrderById(currentUser.getId(), orderId);
         return ResponseEntity.ok(ApiResponse.success(order));
     }
@@ -59,9 +63,21 @@ public class OrderController {
     @PutMapping("/{orderId}/cancel")
     public ResponseEntity<ApiResponse<OrderDTO>> cancelOrder(
             @AuthenticationPrincipal UserPrincipal currentUser,
-            @PathVariable Long orderId) {
+            @PathVariable @Positive Long orderId) {
         OrderDTO order = orderService.cancelOrder(currentUser.getId(), orderId);
         return ResponseEntity.ok(ApiResponse.success("Order cancelled successfully", order));
+    }
+
+    /**
+     * Records a SIZE_ISSUE return signal for deterministic fit scoring (no ML).
+     */
+    @PostMapping("/items/{orderItemId}/fit-return-size-issue")
+    public ResponseEntity<ApiResponse<String>> recordFitReturnSizeIssue(
+            @AuthenticationPrincipal UserPrincipal currentUser,
+            @PathVariable @Positive Long orderItemId) {
+        fitLearningWriteService.recordSizeIssueReturn(currentUser.getId(), orderItemId);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Return signal recorded", "OK"));
     }
 }
 

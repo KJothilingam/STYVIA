@@ -1,23 +1,19 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Check, MapPin, CreditCard, Truck } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import Layout from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useStore } from '@/context/StoreContext';
+import { useCartFitSnapshots } from '@/hooks/useCartFitSnapshots';
+import CartItemSizeFit from '@/components/cart/CartItemSizeFit';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-
-const steps = [
-  { id: 1, name: 'Address', icon: MapPin },
-  { id: 2, name: 'Payment', icon: CreditCard },
-  { id: 3, name: 'Summary', icon: Truck },
-];
+import orderService from '@/services/orderService';
 
 const Checkout = () => {
-  const [currentStep, setCurrentStep] = useState(1);
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState('upi');
   const [newAddress, setNewAddress] = useState({
@@ -31,14 +27,23 @@ const Checkout = () => {
     type: 'home' as const,
   });
   const [showAddAddress, setShowAddAddress] = useState(false);
+  const [placing, setPlacing] = useState(false);
 
-  const { cart, addresses, addAddress, addOrder, clearCart, cartTotal } = useStore();
+  const { cart, addresses, addAddress, addOrder, clearCart, cartTotal, isLoggedIn } = useStore();
+  const { snapshots, loading: fitLoading, hasProfile } = useCartFitSnapshots(cart, isLoggedIn);
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const discount = 0;
   const deliveryFee = cartTotal > 799 ? 0 : 99;
-  const finalTotal = cartTotal - discount + deliveryFee;
+  const finalTotal = cartTotal + deliveryFee;
+
+  useEffect(() => {
+    if (addresses.length === 1 && !selectedAddress) {
+      setSelectedAddress(addresses[0].id);
+    }
+    const def = addresses.find((a) => a.isDefault);
+    if (def && !selectedAddress) setSelectedAddress(def.id);
+  }, [addresses, selectedAddress]);
 
   if (cart.length === 0) {
     navigate('/cart');
@@ -47,81 +52,32 @@ const Checkout = () => {
 
   const handleAddAddress = async () => {
     try {
-      // Validate phone number
-      let phone = newAddress.phone.trim().replace(/\D/g, ''); // Remove non-digits
-      if (phone.startsWith('0')) {
-        phone = phone.substring(1); // Remove leading zero
-      }
+      let phone = newAddress.phone.trim().replace(/\D/g, '');
+      if (phone.startsWith('0')) phone = phone.substring(1);
       if (phone.length !== 10) {
-        toast({
-          title: 'Invalid Phone Number',
-          description: 'Phone number must be exactly 10 digits (without leading 0)',
-          variant: 'destructive',
-        });
+        toast({ title: 'Phone must be 10 digits', variant: 'destructive' });
         return;
       }
-
-      // Validate pincode
       const pincode = newAddress.pincode.trim().replace(/\D/g, '');
       if (pincode.length !== 6) {
-        toast({
-          title: 'Invalid Pincode',
-          description: 'Pincode must be exactly 6 digits',
-          variant: 'destructive',
-        });
+        toast({ title: 'Pincode must be 6 digits', variant: 'destructive' });
         return;
       }
-
-      // Validate other required fields
-      if (!newAddress.name.trim()) {
-        toast({
-          title: 'Validation Error',
-          description: 'Name is required',
-          variant: 'destructive',
-        });
-        return;
-      }
-      if (!newAddress.address.trim()) {
-        toast({
-          title: 'Validation Error',
-          description: 'Address is required',
-          variant: 'destructive',
-        });
-        return;
-      }
-      if (!newAddress.city.trim()) {
-        toast({
-          title: 'Validation Error',
-          description: 'City is required',
-          variant: 'destructive',
-        });
-        return;
-      }
-      if (!newAddress.state.trim()) {
-        toast({
-          title: 'Validation Error',
-          description: 'State is required',
-          variant: 'destructive',
-        });
+      if (!newAddress.name.trim() || !newAddress.address.trim() || !newAddress.city.trim() || !newAddress.state.trim()) {
+        toast({ title: 'Fill all required fields', variant: 'destructive' });
         return;
       }
 
       const addr = {
         id: `addr-${Date.now()}`,
         ...newAddress,
-        phone, // Use cleaned phone number
-        pincode, // Use cleaned pincode
+        phone,
+        pincode,
         isDefault: addresses.length === 0,
       };
-      
+
       await addAddress(addr);
-      
-      toast({
-        title: 'Address Saved',
-        description: 'Address has been added successfully',
-      });
-      
-      // Wait a moment for state to update
+      toast({ title: 'Address saved' });
       setTimeout(() => {
         setSelectedAddress(addr.id);
         setShowAddAddress(false);
@@ -136,434 +92,267 @@ const Checkout = () => {
           type: 'home',
         });
       }, 100);
-    } catch (error: any) {
-      console.error('Error adding address:', error);
-      const errorMsg = error?.response?.data?.message || error?.message || 'Failed to add address. Please try again.';
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
       toast({
-        title: 'Failed to Save Address',
-        description: errorMsg,
+        title: 'Could not save address',
+        description: err?.response?.data?.message || 'Try again',
         variant: 'destructive',
       });
     }
   };
 
-  const handlePlaceOrder = () => {
+  const handlePlaceOrder = async () => {
     const address = addresses.find((a) => a.id === selectedAddress);
-    if (!address) return;
-
-    const order = {
-      id: `ORD${Date.now()}`,
-      items: cart,
-      totalAmount: finalTotal,
-      discount,
-      deliveryFee,
-      address,
-      paymentMethod: paymentMethod as 'cod' | 'card' | 'upi',
-      status: 'processing' as const,
-      orderedAt: new Date(),
-    };
-
-    addOrder(order);
-    clearCart();
-    navigate(`/order-confirmation/${order.id}`);
+    if (!address) {
+      toast({ title: 'Choose a delivery address', variant: 'destructive' });
+      return;
+    }
+    setPlacing(true);
+    try {
+      const paymentMap = { cod: 'COD', card: 'CARD', upi: 'UPI', net_banking: 'NET_BANKING' } as const;
+      const res = await orderService.placeOrder({
+        addressId: Number(address.id),
+        paymentMethod: paymentMap[paymentMethod as keyof typeof paymentMap] || 'COD',
+      });
+      addOrder({
+        id: res.orderNumber,
+        items: cart,
+        totalAmount: res.totalAmount,
+        discount: res.discount,
+        deliveryFee: res.deliveryFee,
+        address,
+        paymentMethod: paymentMethod as 'cod' | 'card' | 'upi',
+        status: res.orderStatus?.toLowerCase() as 'processing' | 'shipped' | 'delivered' | 'cancelled',
+        orderedAt: new Date(res.createdAt),
+        deliveredAt: res.deliveredAt ? new Date(res.deliveredAt) : undefined,
+      });
+      clearCart();
+      navigate(`/order-confirmation/${res.orderNumber}`);
+    } catch (e: unknown) {
+      toast({
+        title: 'Order failed',
+        description: (e as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Try again',
+        variant: 'destructive',
+      });
+    } finally {
+      setPlacing(false);
+    }
   };
 
   const selectedAddressData = addresses.find((a) => a.id === selectedAddress);
 
+  const paymentLabel =
+    paymentMethod === 'cod' ? 'Cash on delivery' : paymentMethod === 'upi' ? 'UPI' : 'Card';
+
   return (
     <Layout>
-      <div className="container mx-auto px-4 py-6">
-        {/* Breadcrumb */}
-        <nav className="text-sm text-muted-foreground mb-6">
-          <Link to="/" className="hover:text-primary">Home</Link>
-          <span className="mx-2">/</span>
-          <Link to="/cart" className="hover:text-primary">Bag</Link>
-          <span className="mx-2">/</span>
-          <span className="text-foreground">Checkout</span>
-        </nav>
+      <div className="min-h-[70vh] bg-secondary/20">
+        <div className="mx-auto max-w-lg px-4 py-8 md:py-12">
+          <Link
+            to="/cart"
+            className="mb-8 inline-flex items-center gap-2 text-sm text-muted-foreground transition hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to bag
+          </Link>
 
-        {/* Steps */}
-        <div className="flex items-center justify-center mb-8">
-          {steps.map((step, index) => (
-            <div key={step.id} className="flex items-center">
-              <div
-                className={cn(
-                  'flex items-center gap-2 px-4 py-2 rounded-full',
-                  currentStep >= step.id
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-secondary text-muted-foreground'
-                )}
-              >
-                {currentStep > step.id ? (
-                  <Check className="w-4 h-4" />
-                ) : (
-                  <step.icon className="w-4 h-4" />
-                )}
-                <span className="font-medium text-sm">{step.name}</span>
-              </div>
-              {index < steps.length - 1 && (
-                <div
-                  className={cn(
-                    'w-12 h-0.5 mx-2',
-                    currentStep > step.id ? 'bg-primary' : 'bg-secondary'
-                  )}
-                />
-              )}
-            </div>
-          ))}
-        </div>
+          <h1 className="font-display-hero text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
+            Checkout
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">Address, payment, summary — in one place.</p>
 
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* Main Content */}
-          <div className="lg:col-span-2">
-            {/* Step 1: Address */}
-            {currentStep === 1 && (
-              <div className="bg-card border rounded-lg p-6">
-                <h2 className="text-xl font-bold mb-6">Select Delivery Address</h2>
+          <div className="mt-10 space-y-12">
+            {/* Address */}
+            <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+              <h2 className="text-base font-semibold text-foreground">Address</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">Where should we deliver?</p>
 
+              <div className="mt-5 space-y-3">
                 {addresses.length > 0 && !showAddAddress && (
-                  <RadioGroup
-                    value={selectedAddress || ''}
-                    onValueChange={setSelectedAddress}
-                    className="space-y-4"
-                  >
+                  <RadioGroup value={selectedAddress || ''} onValueChange={setSelectedAddress}>
                     {addresses.map((address) => (
-                      <div
+                      <label
                         key={address.id}
+                        htmlFor={`addr-${address.id}`}
                         className={cn(
-                          'border rounded-lg p-4 cursor-pointer',
-                          selectedAddress === address.id && 'border-primary'
+                          'flex cursor-pointer gap-3 rounded-xl border p-4 transition-colors',
+                          selectedAddress === address.id ? 'border-foreground bg-secondary/40' : 'border-border hover:bg-secondary/20'
                         )}
                       >
-                        <div className="flex items-start gap-3">
-                          <RadioGroupItem value={address.id} id={address.id} />
-                          <label htmlFor={address.id} className="flex-1 cursor-pointer">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="font-bold">{address.name}</span>
-                              <span className="text-xs bg-secondary px-2 py-0.5 rounded uppercase">
-                                {address.type}
-                              </span>
-                            </div>
-                            <p className="text-sm text-muted-foreground">
-                              {address.address}, {address.locality}
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              {address.city}, {address.state} - {address.pincode}
-                            </p>
-                            <p className="text-sm mt-1">Mobile: {address.phone}</p>
-                          </label>
+                        <RadioGroupItem value={address.id} id={`addr-${address.id}`} className="mt-1" />
+                        <div className="min-w-0 flex-1 text-sm">
+                          <p className="font-medium text-foreground">{address.name}</p>
+                          <p className="mt-1 text-muted-foreground leading-relaxed">
+                            {address.address}
+                            {address.locality ? `, ${address.locality}` : ''}
+                            <br />
+                            {address.city}, {address.state} {address.pincode}
+                          </p>
+                          <p className="mt-1 text-muted-foreground">{address.phone}</p>
                         </div>
-                      </div>
+                      </label>
                     ))}
                   </RadioGroup>
                 )}
 
                 {!showAddAddress && (
-                  <Button
-                    variant="outline"
-                    className="mt-4"
-                    onClick={() => setShowAddAddress(true)}
-                  >
-                    + Add New Address
+                  <Button type="button" variant="ghost" size="sm" className="px-0 text-intelligence-mid hover:text-intelligence-mid" onClick={() => setShowAddAddress(true)}>
+                    + Add address
                   </Button>
                 )}
 
                 {showAddAddress && (
-                  <div className="space-y-4 mt-4">
-                    <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="space-y-3 rounded-xl border border-dashed border-border p-4">
+                    <div className="grid gap-3 sm:grid-cols-2">
                       <div>
-                        <Label>Full Name</Label>
-                        <Input
-                          value={newAddress.name}
-                          onChange={(e) =>
-                            setNewAddress({ ...newAddress, name: e.target.value })
-                          }
-                          placeholder="Enter full name"
-                        />
+                        <Label className="text-xs">Name</Label>
+                        <Input className="mt-1" value={newAddress.name} onChange={(e) => setNewAddress({ ...newAddress, name: e.target.value })} />
                       </div>
                       <div>
-                        <Label>Phone Number</Label>
+                        <Label className="text-xs">Phone</Label>
                         <Input
-                          type="tel"
-                          maxLength={11}
+                          className="mt-1"
+                          inputMode="numeric"
                           value={newAddress.phone}
-                          onChange={(e) => {
-                            const value = e.target.value.replace(/\D/g, ''); // Only digits
-                            setNewAddress({ ...newAddress, phone: value });
-                          }}
-                          placeholder="10-digit mobile number (without 0)"
+                          onChange={(e) => setNewAddress({ ...newAddress, phone: e.target.value.replace(/\D/g, '') })}
                         />
-                        {newAddress.phone && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {newAddress.phone.length} digits
-                            {newAddress.phone.startsWith('0') && ' (Leading 0 will be removed)'}
-                          </p>
-                        )}
                       </div>
                     </div>
-                    <div className="grid sm:grid-cols-2 gap-4">
+                    <div className="grid gap-3 sm:grid-cols-2">
                       <div>
-                        <Label>Pincode</Label>
+                        <Label className="text-xs">Pincode</Label>
                         <Input
-                          type="tel"
+                          className="mt-1"
+                          inputMode="numeric"
                           maxLength={6}
                           value={newAddress.pincode}
-                          onChange={(e) => {
-                            const value = e.target.value.replace(/\D/g, ''); // Only digits
-                            setNewAddress({ ...newAddress, pincode: value });
-                          }}
-                          placeholder="6-digit pincode"
+                          onChange={(e) => setNewAddress({ ...newAddress, pincode: e.target.value.replace(/\D/g, '') })}
                         />
-                        {newAddress.pincode && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {newAddress.pincode.length}/6 digits
-                          </p>
-                        )}
                       </div>
                       <div>
-                        <Label>Locality</Label>
-                        <Input
-                          value={newAddress.locality}
-                          onChange={(e) =>
-                            setNewAddress({ ...newAddress, locality: e.target.value })
-                          }
-                          placeholder="Locality/Area"
-                        />
+                        <Label className="text-xs">Area</Label>
+                        <Input className="mt-1" value={newAddress.locality} onChange={(e) => setNewAddress({ ...newAddress, locality: e.target.value })} />
                       </div>
                     </div>
                     <div>
-                      <Label>Address</Label>
-                      <Input
-                        value={newAddress.address}
-                        onChange={(e) =>
-                          setNewAddress({ ...newAddress, address: e.target.value })
-                        }
-                        placeholder="House No., Building, Street"
-                      />
+                      <Label className="text-xs">Street, building</Label>
+                      <Input className="mt-1" value={newAddress.address} onChange={(e) => setNewAddress({ ...newAddress, address: e.target.value })} />
                     </div>
-                    <div className="grid sm:grid-cols-2 gap-4">
+                    <div className="grid gap-3 sm:grid-cols-2">
                       <div>
-                        <Label>City</Label>
-                        <Input
-                          value={newAddress.city}
-                          onChange={(e) =>
-                            setNewAddress({ ...newAddress, city: e.target.value })
-                          }
-                          placeholder="City"
-                        />
+                        <Label className="text-xs">City</Label>
+                        <Input className="mt-1" value={newAddress.city} onChange={(e) => setNewAddress({ ...newAddress, city: e.target.value })} />
                       </div>
                       <div>
-                        <Label>State</Label>
-                        <Input
-                          value={newAddress.state}
-                          onChange={(e) =>
-                            setNewAddress({ ...newAddress, state: e.target.value })
-                          }
-                          placeholder="State"
-                        />
+                        <Label className="text-xs">State</Label>
+                        <Input className="mt-1" value={newAddress.state} onChange={(e) => setNewAddress({ ...newAddress, state: e.target.value })} />
                       </div>
                     </div>
-                    <div className="flex gap-4">
-                      <Button onClick={handleAddAddress}>Save Address</Button>
-                      <Button variant="outline" onClick={() => setShowAddAddress(false)}>
+                    <div className="flex gap-2">
+                      <Button type="button" size="sm" onClick={handleAddAddress}>
+                        Save
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={() => setShowAddAddress(false)}>
                         Cancel
                       </Button>
                     </div>
                   </div>
                 )}
-
-                <div className="mt-6 pt-6 border-t">
-                  <Button
-                    className="w-full"
-                    disabled={!selectedAddress}
-                    onClick={() => setCurrentStep(2)}
-                  >
-                    Continue to Payment
-                  </Button>
-                </div>
               </div>
-            )}
+            </section>
 
-            {/* Step 2: Payment */}
-            {currentStep === 2 && (
-              <div className="bg-card border rounded-lg p-6">
-                <h2 className="text-xl font-bold mb-6">Select Payment Method</h2>
+            {/* Payment */}
+            <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+              <h2 className="text-base font-semibold text-foreground">Payment</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">How you&apos;ll pay</p>
 
-                <RadioGroup
-                  value={paymentMethod}
-                  onValueChange={setPaymentMethod}
-                  className="space-y-4"
-                >
-                  <div
+              <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod} className="mt-5 space-y-2">
+                {[
+                  { id: 'upi', label: 'UPI' },
+                  { id: 'card', label: 'Card' },
+                  { id: 'cod', label: 'Cash on delivery' },
+                ].map(({ id, label }) => (
+                  <label
+                    key={id}
+                    htmlFor={`pay-${id}`}
                     className={cn(
-                      'border rounded-lg p-4 cursor-pointer',
-                      paymentMethod === 'upi' && 'border-primary'
+                      'flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm font-medium transition-colors',
+                      paymentMethod === id ? 'border-foreground bg-secondary/40' : 'border-border hover:bg-secondary/20'
                     )}
                   >
-                    <div className="flex items-center gap-3">
-                      <RadioGroupItem value="upi" id="upi" />
-                      <label htmlFor="upi" className="cursor-pointer">
-                        <span className="font-bold">UPI</span>
-                        <p className="text-sm text-muted-foreground">
-                          Pay using UPI apps like Google Pay, PhonePe, etc.
-                        </p>
-                      </label>
-                    </div>
-                  </div>
-                  <div
-                    className={cn(
-                      'border rounded-lg p-4 cursor-pointer',
-                      paymentMethod === 'card' && 'border-primary'
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <RadioGroupItem value="card" id="card" />
-                      <label htmlFor="card" className="cursor-pointer">
-                        <span className="font-bold">Credit/Debit Card</span>
-                        <p className="text-sm text-muted-foreground">
-                          Visa, Mastercard, Rupay accepted
-                        </p>
-                      </label>
-                    </div>
-                  </div>
-                  <div
-                    className={cn(
-                      'border rounded-lg p-4 cursor-pointer',
-                      paymentMethod === 'cod' && 'border-primary'
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <RadioGroupItem value="cod" id="cod" />
-                      <label htmlFor="cod" className="cursor-pointer">
-                        <span className="font-bold">Cash on Delivery</span>
-                        <p className="text-sm text-muted-foreground">
-                          Pay when your order is delivered
-                        </p>
-                      </label>
-                    </div>
-                  </div>
-                </RadioGroup>
+                    <RadioGroupItem value={id} id={`pay-${id}`} />
+                    {label}
+                  </label>
+                ))}
+              </RadioGroup>
+            </section>
 
-                <div className="mt-6 pt-6 border-t flex gap-4">
-                  <Button variant="outline" onClick={() => setCurrentStep(1)}>
-                    Back
-                  </Button>
-                  <Button className="flex-1" onClick={() => setCurrentStep(3)}>
-                    Review Order
-                  </Button>
-                </div>
-              </div>
-            )}
+            {/* Order summary */}
+            <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+              <h2 className="text-base font-semibold text-foreground">Order summary</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">{cart.length} {cart.length === 1 ? 'item' : 'items'}</p>
 
-            {/* Step 3: Summary */}
-            {currentStep === 3 && (
-              <div className="bg-card border rounded-lg p-6">
-                <h2 className="text-xl font-bold mb-6">Order Summary</h2>
-
-                {/* Delivery Address */}
-                <div className="mb-6 pb-6 border-b">
-                  <h3 className="font-bold text-sm uppercase tracking-wide mb-3">
-                    Delivery Address
-                  </h3>
-                  {selectedAddressData && (
-                    <div>
-                      <p className="font-semibold">{selectedAddressData.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {selectedAddressData.address}, {selectedAddressData.locality}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {selectedAddressData.city}, {selectedAddressData.state} -{' '}
-                        {selectedAddressData.pincode}
-                      </p>
-                      <p className="text-sm mt-1">Mobile: {selectedAddressData.phone}</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Payment Method */}
-                <div className="mb-6 pb-6 border-b">
-                  <h3 className="font-bold text-sm uppercase tracking-wide mb-3">
-                    Payment Method
-                  </h3>
-                  <p className="font-semibold capitalize">
-                    {paymentMethod === 'cod'
-                      ? 'Cash on Delivery'
-                      : paymentMethod === 'upi'
-                      ? 'UPI'
-                      : 'Credit/Debit Card'}
-                  </p>
-                </div>
-
-                {/* Items */}
-                <div className="mb-6">
-                  <h3 className="font-bold text-sm uppercase tracking-wide mb-3">
-                    Items ({cart.length})
-                  </h3>
-                  <div className="space-y-3">
-                    {cart.map((item) => (
-                      <div
-                        key={`${item.product.id}-${item.size}`}
-                        className="flex gap-3"
-                      >
-                        <img
-                          src={item.product.images[0]}
-                          alt={item.product.name}
-                          className="w-16 h-20 object-cover rounded"
+              <ul className="mt-5 divide-y divide-border">
+                {cart.map((item) => (
+                  <li key={`${item.product.id}-${item.size}`} className="flex gap-3 py-4 first:pt-0">
+                    <img
+                      src={item.product.images[0]}
+                      alt=""
+                      className="h-20 w-16 shrink-0 rounded-md object-cover"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-foreground line-clamp-2">{item.product.name}</p>
+                      <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                        <CartItemSizeFit
+                          selectedSize={item.size}
+                          fit={snapshots[item.product.id]}
+                          loading={fitLoading}
+                          isLoggedIn={isLoggedIn}
+                          hasProfile={hasProfile}
+                          compact
                         />
-                        <div className="flex-1">
-                          <p className="font-semibold text-sm">{item.product.brand}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {item.product.name}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Size: {item.size} | Qty: {item.quantity}
-                          </p>
-                          <p className="font-bold text-sm mt-1">
-                            ₹{(item.product.price * item.quantity).toLocaleString()}
-                          </p>
-                        </div>
+                        <span>Qty {item.quantity}</span>
                       </div>
-                    ))}
-                  </div>
-                </div>
+                      <p className="mt-2 text-sm font-semibold tabular-nums">₹{(item.product.price * item.quantity).toLocaleString()}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
 
-                <div className="mt-6 pt-6 border-t flex gap-4">
-                  <Button variant="outline" onClick={() => setCurrentStep(2)}>
-                    Back
-                  </Button>
-                  <Button className="flex-1" onClick={handlePlaceOrder}>
-                    Place Order
-                  </Button>
+              <div className="mt-6 space-y-2 border-t border-border pt-6 text-sm">
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Subtotal</span>
+                  <span className="tabular-nums text-foreground">₹{cartTotal.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Delivery</span>
+                  <span className={deliveryFee === 0 ? 'text-styvia-green' : 'tabular-nums text-foreground'}>
+                    {deliveryFee === 0 ? 'Free' : `₹${deliveryFee}`}
+                  </span>
+                </div>
+                <div className="flex justify-between pt-2 text-base font-semibold">
+                  <span>Total</span>
+                  <span className="tabular-nums">₹{finalTotal.toLocaleString()}</span>
                 </div>
               </div>
-            )}
-          </div>
 
-          {/* Order Summary Sidebar */}
-          <div className="lg:col-span-1">
-            <div className="sticky top-24 border rounded-lg p-4">
-              <h3 className="font-bold uppercase text-sm tracking-wide mb-4">
-                Price Details
-              </h3>
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between">
-                  <span>Total MRP</span>
-                  <span>₹{cartTotal.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Delivery Fee</span>
-                  {deliveryFee > 0 ? (
-                    <span>₹{deliveryFee}</span>
-                  ) : (
-                    <span className="text-styvia-green">FREE</span>
-                  )}
-                </div>
-                <div className="border-t pt-3 flex justify-between font-bold text-base">
-                  <span>Total Amount</span>
-                  <span>₹{finalTotal.toLocaleString()}</span>
-                </div>
-              </div>
-            </div>
+              {selectedAddressData && (
+                <p className="mt-4 text-xs text-muted-foreground">
+                  Deliver to <span className="font-medium text-foreground">{selectedAddressData.city}</span> · Pay with{' '}
+                  <span className="font-medium text-foreground">{paymentLabel}</span>
+                </p>
+              )}
+
+              <Button
+                type="button"
+                className="mt-6 h-12 w-full bg-foreground text-background hover:bg-foreground/90"
+                disabled={!selectedAddress || placing}
+                onClick={handlePlaceOrder}
+              >
+                {placing ? 'Placing order…' : 'Place order'}
+              </Button>
+            </section>
           </div>
         </div>
       </div>

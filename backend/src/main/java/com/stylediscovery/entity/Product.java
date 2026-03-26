@@ -2,6 +2,8 @@ package com.stylediscovery.entity;
 
 import com.stylediscovery.enums.Gender;
 import com.stylediscovery.enums.ProductStatus;
+import com.stylediscovery.enums.GarmentFitStyle;
+import com.stylediscovery.enums.StretchLevel;
 import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.data.annotation.CreatedDate;
@@ -65,6 +67,16 @@ public class Product {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ProductStatus status = ProductStatus.ACTIVE;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "stretch_level", length = 16)
+    @Builder.Default
+    private StretchLevel stretchLevel = StretchLevel.MEDIUM;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "garment_fit_style", length = 16)
+    @Builder.Default
+    private GarmentFitStyle garmentFitStyle = GarmentFitStyle.REGULAR;
 
     @ManyToMany
     @JoinTable(

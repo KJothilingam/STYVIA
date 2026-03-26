@@ -2,14 +2,25 @@ package com.stylediscovery.controller;
 
 import com.stylediscovery.dto.ApiResponse;
 import com.stylediscovery.dto.ProductDTO;
+import com.stylediscovery.dto.fit.FitConfidenceResponseDTO;
+import com.stylediscovery.dto.fit.FitFeedbackRequestDTO;
+import com.stylediscovery.dto.fit.OutfitRecommendationDTO;
 import com.stylediscovery.enums.Gender;
+import com.stylediscovery.security.UserPrincipal;
+import com.stylediscovery.service.FitLearningWriteService;
+import com.stylediscovery.service.FitRecommendationService;
 import com.stylediscovery.service.ProductService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -18,9 +29,12 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/products")
 @RequiredArgsConstructor
+@Validated
 public class ProductController {
 
     private final ProductService productService;
+    private final FitRecommendationService fitRecommendationService;
+    private final FitLearningWriteService fitLearningWriteService;
 
     @GetMapping
     public ResponseEntity<ApiResponse<Page<ProductDTO>>> getAllProducts(
@@ -39,7 +53,7 @@ public class ProductController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<ProductDTO>> getProductById(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<ProductDTO>> getProductById(@PathVariable @Positive Long id) {
         ProductDTO product = productService.getProductById(id);
         return ResponseEntity.ok(ApiResponse.success(product));
     }
@@ -107,6 +121,32 @@ public class ProductController {
     public ResponseEntity<ApiResponse<List<String>>> getAllBrands() {
         List<String> brands = productService.getAllBrands();
         return ResponseEntity.ok(ApiResponse.success(brands));
+    }
+
+    @GetMapping("/{productId}/fit-confidence")
+    public ResponseEntity<ApiResponse<FitConfidenceResponseDTO>> fitConfidence(
+            @AuthenticationPrincipal UserPrincipal user,
+            @PathVariable @Positive Long productId) {
+        FitConfidenceResponseDTO dto = fitRecommendationService.fitConfidence(user.getId(), productId);
+        return ResponseEntity.ok(ApiResponse.success(dto));
+    }
+
+    @PostMapping("/{productId}/fit-feedback")
+    public ResponseEntity<ApiResponse<String>> submitFitFeedback(
+            @AuthenticationPrincipal UserPrincipal user,
+            @PathVariable @Positive Long productId,
+            @Valid @RequestBody FitFeedbackRequestDTO body) {
+        fitLearningWriteService.submitFitFeedbackFromRequest(user.getId(), productId, body.getSize(), body.getFeedback());
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Fit feedback recorded", "OK"));
+    }
+
+    @GetMapping("/{productId}/outfit")
+    public ResponseEntity<ApiResponse<OutfitRecommendationDTO>> outfit(
+            @AuthenticationPrincipal UserPrincipal user,
+            @PathVariable @Positive Long productId) {
+        OutfitRecommendationDTO dto = fitRecommendationService.outfit(productId);
+        return ResponseEntity.ok(ApiResponse.success(dto));
     }
 }
 

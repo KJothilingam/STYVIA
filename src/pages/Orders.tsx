@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Package, ChevronRight } from 'lucide-react';
+import { Package, ChevronRight, ImageOff } from 'lucide-react';
 import Layout from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/context/StoreContext';
@@ -91,32 +91,49 @@ const Orders = () => {
 
               {/* Order Items */}
               <div className="space-y-3">
-                {order.items.map((item) => (
-                  <Link
-                    key={`${item.product.id}-${item.size}`}
-                    to={`/product/${item.product.id}`}
-                    className="flex gap-4 hover:bg-secondary/50 rounded-lg p-2 -mx-2"
-                  >
-                    <img
-                      src={item.product.images[0]}
-                      alt={item.product.name}
-                      className="w-20 h-24 object-cover rounded"
-                    />
-                    <div className="flex-1">
-                      <p className="font-bold">{item.product.brand}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {item.product.name}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        Size: {item.size} | Qty: {item.quantity}
-                      </p>
-                      <p className="font-bold mt-1">
-                        ₹{(item.product.price * item.quantity).toLocaleString()}
-                      </p>
+                {order.items.map((item) => {
+                  const thumb = item.product.images?.[0];
+                  const pid = item.product.id;
+                  const rowInner = (
+                    <>
+                      <div className="w-20 h-24 rounded-md border border-border/60 bg-muted/40 shrink-0 overflow-hidden flex items-center justify-center">
+                        {thumb ? (
+                          <img src={thumb} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <ImageOff className="w-7 h-7 text-muted-foreground/50" aria-hidden />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold truncate">{item.product.brand}</p>
+                        <p className="text-sm text-muted-foreground line-clamp-2">{item.product.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          Size: {item.size}
+                          {item.color ? ` · ${item.color}` : ''} | Qty: {item.quantity}
+                        </p>
+                        <p className="font-bold mt-1 tabular-nums">
+                          ₹{(item.product.price * item.quantity).toLocaleString('en-IN')}
+                        </p>
+                      </div>
+                      <ChevronRight className="w-5 h-5 text-muted-foreground self-center shrink-0" />
+                    </>
+                  );
+                  return pid ? (
+                    <Link
+                      key={`${item.product.id}-${item.size}-${item.color}`}
+                      to={`/product/${pid}`}
+                      className="flex gap-4 hover:bg-secondary/50 rounded-lg p-2 -mx-2 transition-colors"
+                    >
+                      {rowInner}
+                    </Link>
+                  ) : (
+                    <div
+                      key={`${item.product.name}-${item.size}`}
+                      className="flex gap-4 rounded-lg p-2 -mx-2"
+                    >
+                      {rowInner}
                     </div>
-                    <ChevronRight className="w-5 h-5 text-muted-foreground self-center" />
-                  </Link>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Delivery Info */}

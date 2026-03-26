@@ -15,6 +15,8 @@ export interface Product {
   rating: number;
   reviewCount: number;
   inStock: boolean;
+  /** Garment stretch; used for Fit type filter on listing */
+  stretchLevel?: 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH' | null;
 }
 
 export interface CartItem {
@@ -22,6 +24,8 @@ export interface CartItem {
   quantity: number;
   size: string;
   color: string;
+  /** Backend cart item id for API update/remove */
+  cartItemId?: number;
 }
 
 export interface WishlistItem {

@@ -5,7 +5,36 @@ const Footer = () => {
   return (
     <footer className="bg-secondary mt-12">
       <div className="container mx-auto px-4 py-10">
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-8">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-8">
+          {/* Body Intelligence */}
+          <div className="col-span-2 md:col-span-1">
+            <h3 className="font-bold text-sm uppercase tracking-wide mb-4 text-intelligence-mid">
+              Body intelligence
+            </h3>
+            <ul className="space-y-2">
+              <li>
+                <Link to="/products" className="text-sm text-muted-foreground hover:text-intelligence-mid">
+                  Fit confidence on products
+                </Link>
+              </li>
+              <li>
+                <Link to="/profile" className="text-sm text-muted-foreground hover:text-intelligence-mid">
+                  Your body profile
+                </Link>
+              </li>
+              <li>
+                <Link to="/wardrobe" className="text-sm text-muted-foreground hover:text-intelligence-mid">
+                  Smart wardrobe
+                </Link>
+              </li>
+              <li>
+                <Link to="/orders" className="text-sm text-muted-foreground hover:text-intelligence-mid">
+                  Orders &amp; feedback
+                </Link>
+              </li>
+            </ul>
+          </div>
+
           {/* Online Shopping */}
           <div>
             <h3 className="font-bold text-sm uppercase tracking-wide mb-4 text-foreground">

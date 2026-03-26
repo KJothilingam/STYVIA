@@ -81,6 +81,7 @@ export default {
       },
       fontFamily: {
         sans: ['Assistant', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+        serif: ['"Playfair Display"', 'Georgia', 'Times New Roman', 'serif'],
       },
       keyframes: {
         "accordion-down": {

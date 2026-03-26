@@ -4,7 +4,50 @@ import authService from '@/services/authService';
 import cartService from '@/services/cartService';
 import wishlistService from '@/services/wishlistService';
 import addressService from '@/services/addressService';
-import orderService from '@/services/orderService';
+import orderService, { type OrderItemLine } from '@/services/orderService';
+import { apiProductToProduct } from '@/lib/productAdapter';
+
+function mapPaymentMethodForStore(m: string): Order['paymentMethod'] {
+  const u = (m || '').toUpperCase();
+  if (u === 'CARD' || u === 'CREDIT_CARD') return 'card';
+  if (u === 'UPI') return 'upi';
+  return 'cod';
+}
+
+function mapOrderStatusForStore(s: string): Order['status'] {
+  const u = (s || '').toUpperCase();
+  if (u === 'DELIVERED') return 'delivered';
+  if (u === 'CANCELLED' || u === 'RETURNED') return 'cancelled';
+  if (u === 'SHIPPED' || u === 'OUT_FOR_DELIVERY') return 'shipped';
+  return 'processing';
+}
+
+/** Map API order lines into store CartItems so /orders can render without full product payloads. */
+function cartItemsFromOrderLines(lines: OrderItemLine[]): CartItem[] {
+  return (lines ?? []).map((line) => ({
+    product: {
+      id: String(line.productId ?? ''),
+      name: line.productName ?? 'Product',
+      brand: line.productBrand ?? '—',
+      category: 'accessories',
+      subcategory: '',
+      price: Number(line.price ?? 0),
+      originalPrice: Number(line.price ?? 0),
+      discount: 0,
+      images: [],
+      sizes: line.size ? [line.size] : [],
+      colors: line.color ? [{ name: line.color, hex: '#e5e5e5' }] : [],
+      description: '',
+      material: '',
+      rating: 0,
+      reviewCount: 0,
+      inStock: true,
+    },
+    quantity: line.quantity ?? 0,
+    size: line.size ?? '',
+    color: line.color ?? '',
+  }));
+}
 
 interface StoreContextType {
   // Cart
@@ -196,9 +239,39 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [user]);
 
+  const loadCartFromApi = useCallback(async () => {
+    if (!authService.isAuthenticated()) return;
+    try {
+      const items = await cartService.getCart();
+      const mapped: CartItem[] = (items || []).map((i: { id: number; product: unknown; size: string; color: string; quantity: number }) => ({
+        cartItemId: i.id,
+        product: apiProductToProduct(i.product as Parameters<typeof apiProductToProduct>[0]),
+        quantity: i.quantity,
+        size: i.size,
+        color: i.color,
+      }));
+      setCart(mapped);
+    } catch {
+      // keep current cart
+    }
+  }, []);
+
+  const loadWishlistFromApi = useCallback(async () => {
+    if (!authService.isAuthenticated()) return;
+    try {
+      const list = await wishlistService.getWishlist();
+      setWishlist((list || []).map((p: unknown) => ({ product: apiProductToProduct(p as Parameters<typeof apiProductToProduct>[0]), addedAt: new Date() })));
+    } catch {
+      // keep current
+    }
+  }, []);
+
   const loadUserData = async () => {
     try {
-      // Cart and wishlist are already loaded from localStorage on mount
+      setIsLoadingCart(true);
+      setIsLoadingWishlist(true);
+      await loadCartFromApi();
+      await loadWishlistFromApi();
       setIsLoadingCart(false);
       setIsLoadingWishlist(false);
 
@@ -231,32 +304,38 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setIsLoadingOrders(true);
       try {
         const ordersData = await orderService.getUserOrders(0, 20);
-        if (ordersData && ordersData.content && ordersData.content.length > 0) {
-          setOrders(ordersData.content.map(order => ({
-            id: order.orderNumber,
-            items: order.items,
-            totalAmount: order.totalAmount,
-            discount: order.discount,
-            deliveryFee: order.deliveryFee,
-            address: {
-              id: order.address.id?.toString() || '',
-              name: order.address.name,
-              phone: order.address.phone,
-              pincode: order.address.pincode,
-              locality: order.address.locality || '',
-              address: order.address.addressLine1,
-              city: order.address.city,
-              state: order.address.state,
-              type: 'home',
-              isDefault: false,
-            },
-            paymentMethod: order.paymentMethod.toLowerCase() as any,
-            status: order.orderStatus.toLowerCase() as any,
-            orderedAt: new Date(order.createdAt),
-            deliveredAt: order.deliveredAt ? new Date(order.deliveredAt) : undefined,
-          })));
+        if (ordersData?.content) {
+          if (ordersData.content.length === 0) {
+            setOrders([]);
+          } else {
+            setOrders(
+              ordersData.content.map((order) => ({
+                id: order.orderNumber,
+                items: cartItemsFromOrderLines(order.items),
+                totalAmount: Number(order.totalAmount),
+                discount: Number(order.discount),
+                deliveryFee: Number(order.deliveryFee),
+                address: {
+                  id: order.address.id?.toString() || '',
+                  name: order.address.name,
+                  phone: order.address.phone,
+                  pincode: order.address.pincode,
+                  locality: order.address.locality || '',
+                  address: order.address.addressLine1,
+                  city: order.address.city,
+                  state: order.address.state,
+                  type: 'home',
+                  isDefault: false,
+                },
+                paymentMethod: mapPaymentMethodForStore(order.paymentMethod),
+                status: mapOrderStatusForStore(order.orderStatus),
+                orderedAt: new Date(order.createdAt),
+                deliveredAt: order.deliveredAt ? new Date(order.deliveredAt) : undefined,
+              })),
+            );
+          }
         }
-        // If no orders from backend, keep localStorage orders (already loaded)
+        // If API fails, localStorage orders from loadUserCartWishlist remain
       } catch (error) {
         console.error('Error loading orders from backend, using localStorage:', error);
         // Orders from localStorage are already loaded in loadUserCartWishlist
@@ -271,79 +350,87 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const addToCart = useCallback((product: Product, size: string, color: string) => {
+  const addToCart = useCallback(async (product: Product, size: string, color: string) => {
     if (!authService.isAuthenticated()) {
       alert('Please login to add items to cart');
       return;
     }
-
-    // Update local state immediately
-    setCart((prev) => {
-      const existing = prev.find(
-        (item) => item.product.id === product.id && item.size === size
-      );
-      if (existing) {
-        return prev.map((item) =>
-          item.product.id === product.id && item.size === size
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        );
-      }
-      return [...prev, { product, quantity: 1, size, color }];
-    });
-    
-    // localStorage save happens automatically via useEffect
-  }, []);
+    try {
+      await cartService.addToCart({
+        productId: Number(product.id),
+        size,
+        color,
+        quantity: 1,
+      });
+      await loadCartFromApi();
+    } catch {
+      setCart((prev) => {
+        const existing = prev.find((item) => item.product.id === product.id && item.size === size);
+        if (existing) {
+          return prev.map((item) =>
+            item.product.id === product.id && item.size === size ? { ...item, quantity: item.quantity + 1 } : item
+          );
+        }
+        return [...prev, { product, quantity: 1, size, color }];
+      });
+    }
+  }, [loadCartFromApi]);
 
   const removeFromCart = useCallback((productId: string, size: string) => {
-    setCart((prev) => prev.filter(
-      (item) => !(item.product.id === productId && item.size === size)
-    ));
-    // localStorage save happens automatically via useEffect
-  }, []);
+    setCart((prev) => {
+      const item = prev.find((i) => i.product.id === productId && i.size === size);
+      if (item?.cartItemId) {
+        cartService.removeItem(item.cartItemId).then(loadCartFromApi).catch(() => {});
+        return prev;
+      }
+      return prev.filter((i) => !(i.product.id === productId && i.size === size));
+    });
+  }, [loadCartFromApi]);
 
   const updateCartQuantity = useCallback((productId: string, size: string, quantity: number) => {
     if (quantity <= 0) {
       removeFromCart(productId, size);
       return;
     }
-
-    setCart((prev) =>
-      prev.map((item) =>
-        item.product.id === productId && item.size === size
-          ? { ...item, quantity }
-          : item
-      )
-    );
-    // localStorage save happens automatically via useEffect
-  }, [removeFromCart]);
+    setCart((prev) => {
+      const item = prev.find((i) => i.product.id === productId && i.size === size);
+      if (item?.cartItemId) {
+        cartService.updateQuantity(item.cartItemId, quantity).then(loadCartFromApi).catch(() => {});
+        return prev;
+      }
+      return prev.map((i) =>
+        i.product.id === productId && i.size === size ? { ...i, quantity } : i
+      );
+    });
+  }, [loadCartFromApi, removeFromCart]);
 
   const clearCart = useCallback(() => {
-    setCart([]);
-    // localStorage save happens automatically via useEffect
-  }, []);
+    if (authService.isAuthenticated()) {
+      cartService.clearCart().then(loadCartFromApi).catch(() => setCart([]));
+    } else {
+      setCart([]);
+    }
+  }, [loadCartFromApi]);
 
   const addToWishlist = useCallback((product: Product) => {
     if (!authService.isAuthenticated()) {
       alert('Please login to add items to wishlist');
       return;
     }
-
-    // Update local state immediately
-    setWishlist((prev) => {
-      if (prev.some((item) => item.product.id === product.id)) {
-        return prev;
-      }
-      return [...prev, { product, addedAt: new Date() }];
+    wishlistService.addToWishlist(Number(product.id)).then(() => loadWishlistFromApi()).catch(() => {
+      setWishlist((prev) => (prev.some((item) => item.product.id === product.id) ? prev : [...prev, { product, addedAt: new Date() }]));
     });
-    
-    // localStorage save happens automatically via useEffect
-  }, []);
+  }, [loadWishlistFromApi]);
 
   const removeFromWishlist = useCallback((productId: string) => {
-    setWishlist((prev) => prev.filter((item) => item.product.id !== productId));
-    // localStorage save happens automatically via useEffect
-  }, []);
+    if (authService.isAuthenticated()) {
+      wishlistService.removeFromWishlist(Number(productId)).then(loadWishlistFromApi).catch(() => {
+        setWishlist((prev) => prev.filter((item) => item.product.id !== productId));
+      });
+    } else {
+      setWishlist((prev) => prev.filter((item) => item.product.id !== productId));
+    }
+  }, [loadWishlistFromApi]);
 
   const isInWishlist = useCallback(
     (productId: string) => {

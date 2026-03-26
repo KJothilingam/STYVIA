@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useStore } from '@/context/StoreContext';
 import { useToast } from '@/hooks/use-toast';
 import authService from '@/services/authService';
+import { isAxiosError } from 'axios';
 
 const Login = () => {
   const [loginEmail, setLoginEmail] = useState('');
@@ -47,10 +48,11 @@ const Login = () => {
       } else {
         navigate('/');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const msg = isAxiosError(error) ? (error.response?.data as { message?: string })?.message : undefined;
       toast({
         title: 'Login failed',
-        description: error.response?.data?.message || 'Invalid email or password',
+        description: msg || 'Invalid email or password',
         variant: 'destructive',
       });
     } finally {
@@ -79,10 +81,11 @@ const Login = () => {
       
       toast({ title: 'Account created successfully!' });
       navigate('/');
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const msg = isAxiosError(error) ? (error.response?.data as { message?: string })?.message : undefined;
       toast({
         title: 'Signup failed',
-        description: error.response?.data?.message || 'Could not create account',
+        description: msg || 'Could not create account',
         variant: 'destructive',
       });
     } finally {
@@ -92,20 +95,27 @@ const Login = () => {
 
   return (
     <Layout>
-      <div className="container mx-auto px-4 py-12">
+      <div className="container mx-auto px-4 py-16 md:py-24">
         <div className="max-w-md mx-auto">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-primary">STYVIA</h1>
-            <p className="text-muted-foreground mt-2">
-              Login or Signup to access your account
+          <div className="text-center mb-10">
+            <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-rose-600 via-rose-500 to-amber-500 bg-clip-text text-transparent">
+              STYVIA
+            </h1>
+            <p className="text-muted-foreground mt-3 text-sm leading-relaxed">
+              Sign in for cart, fit studio, wardrobe &amp; donations — API at{' '}
+              <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1'}</code>
             </p>
           </div>
 
-          <div className="bg-card border rounded-lg p-6">
+          <div className="card-elevated p-6 md:p-8 ring-1 ring-black/[0.03]">
             <Tabs defaultValue="login">
-              <TabsList className="grid w-full grid-cols-2 mb-6">
-                <TabsTrigger value="login">Login</TabsTrigger>
-                <TabsTrigger value="signup">Signup</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-2 mb-8 h-11 bg-muted/60 p-1 rounded-xl">
+                <TabsTrigger value="login" className="rounded-lg data-[state=active]:shadow-sm">
+                  Login
+                </TabsTrigger>
+                <TabsTrigger value="signup" className="rounded-lg data-[state=active]:shadow-sm">
+                  Sign up
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="login">
@@ -140,8 +150,8 @@ const Login = () => {
                       Forgot Password?
                     </button>
                   </div>
-                  <Button type="submit" className="w-full h-12 font-bold" disabled={isLoading}>
-                    {isLoading ? 'LOGGING IN...' : 'LOGIN'}
+                  <Button type="submit" className="w-full h-12 font-semibold rounded-xl shadow-sm" disabled={isLoading}>
+                    {isLoading ? 'Signing in…' : 'Sign in'}
                   </Button>
                 </form>
               </TabsContent>
@@ -192,8 +202,8 @@ const Login = () => {
                       required
                     />
                   </div>
-                  <Button type="submit" className="w-full h-12 font-bold" disabled={isLoading}>
-                    {isLoading ? 'CREATING ACCOUNT...' : 'CREATE ACCOUNT'}
+                  <Button type="submit" className="w-full h-12 font-semibold rounded-xl shadow-sm" disabled={isLoading}>
+                    {isLoading ? 'Creating account…' : 'Create account'}
                   </Button>
                 </form>
               </TabsContent>

@@ -6,11 +6,15 @@ import com.stylediscovery.enums.OrderStatus;
 import com.stylediscovery.repository.OrderRepository;
 import com.stylediscovery.repository.ProductRepository;
 import com.stylediscovery.repository.UserRepository;
+import com.stylediscovery.exception.BadRequestException;
+import com.stylediscovery.service.DonationService;
+import com.stylediscovery.service.MlTrainingOrchestratorService;
 import com.stylediscovery.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -28,6 +32,24 @@ public class AdminController {
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
     private final OrderService orderService;
+    private final MlTrainingOrchestratorService mlTrainingOrchestratorService;
+    private final DonationService donationService;
+
+    /**
+     * Exports labeled {@link com.stylediscovery.entity.FitTrainingData} and triggers remote ML training.
+     */
+    @PostMapping("/train-model")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> trainFitModel() {
+        try {
+            Map<String, Object> result = mlTrainingOrchestratorService.exportAndTrainRemote();
+            return ResponseEntity.ok(ApiResponse.success("Model training completed", result));
+        } catch (BadRequestException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                    .body(ApiResponse.error(e.getMessage()));
+        }
+    }
 
     /**
      * Get dashboard statistics
@@ -53,6 +75,9 @@ public class AdminController {
         
         // User statistics
         stats.put("totalUsers", userRepository.count());
+
+        stats.put("pendingDonationPickups", donationService.countPendingPickups());
+        stats.put("pendingDonationBoxes", donationService.countPendingBoxes());
 
         return ResponseEntity.ok(ApiResponse.success(stats));
     }

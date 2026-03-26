@@ -1,13 +1,20 @@
 spring:
   application:
     name: style-discovery-hub
-  
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2000ms
+
   datasource:
-    url: jdbc:mysql://localhost:3306/fashion_ecommerce?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC
+    # allowPublicKeyRetrieval=true avoids "Public Key Retrieval is not allowed" with MySQL 8+ caching_sha2_password (common on Windows/local).
+    url: jdbc:mysql://localhost:3306/fashion_ecommerce?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:root}
     driver-class-name: com.mysql.cj.jdbc.Driver
-  
+
   jpa:
     hibernate:
       ddl-auto: update
@@ -17,7 +24,7 @@ spring:
         dialect: org.hibernate.dialect.MySQLDialect
         format_sql: true
     open-in-view: false
-  
+
   servlet:
     multipart:
       enabled: true
@@ -25,6 +32,7 @@ spring:
       max-request-size: 10MB
 
 server:
+  # API only — run Vite dev server on 5173 (see .env.development VITE_API_BASE_URL)
   port: 8080
   error:
     include-message: always
@@ -41,15 +49,34 @@ file:
   upload-dir: ${FILE_UPLOAD_DIR:./uploads}
   base-url: ${FILE_BASE_URL:http://localhost:8080/api/v1/files}
 
+app:
+  redis:
+    enabled: ${APP_REDIS_ENABLED:false}
+  rate-limit:
+    requests-per-minute: 50
+  ml:
+    enabled: ${ML_SERVICE_ENABLED:true}
+    base-url: ${ML_SERVICE_URL:http://localhost:8090}
+    connect-timeout-ms: 2000
+    read-timeout-ms: 5000
+    rule-weight: 0.7
+    ml-weight: 0.3
+  google:
+    # Server-side Places Nearby Search (REST). Env GOOGLE_PLACES_API_KEY overrides. Embedded default for local dev only.
+    places-api-key: ${GOOGLE_PLACES_API_KEY:AIzaSyD8SvH5aZN2PJOQ7YxuQ0Eh0TpUFWY2V94}
+  assistant:
+    # Optional OpenAI key for /api/v1/assistant/chat (rule-based fallback if blank).
+    openai-api-key: ${OPENAI_API_KEY:}
+    model: ${OPENAI_MODEL:gpt-4o-mini}
+
 # Logging
 logging:
   level:
-    com.stylediscovery: DEBUG
-    org.springframework.security: DEBUG
-    org.hibernate.SQL: DEBUG
+    com.stylediscovery: INFO
+    org.springframework.security: INFO
+    org.hibernate.SQL: WARN
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
     file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
   file:
     name: logs/application.log
-
