@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronRight, Loader2, MapPin, Navigation, RefreshCw } from 'lucide-react';
+import { ChevronRight, Loader2, MapPin, Navigation, RefreshCw, Search } from 'lucide-react';
 import Layout from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -21,6 +21,8 @@ const MAPS_KEY = getGoogleMapsBrowserApiKey();
 
 const DEFAULT_LOC = { lat: 12.9716, lng: 77.5946, label: 'Bangalore (default)' };
 
+type SearchCenter = { lat: number; lng: number; radius: number; openNow: boolean };
+
 type NearbyStoreRow = NearbyStore & {
   googleMapsUrl?: string | null;
   photoUrl?: string | null;
@@ -29,8 +31,8 @@ type NearbyStoreRow = NearbyStore & {
 };
 
 function mapsOpenUrl(store: NearbyStoreRow): string {
-  const direct = store.googleMapsUrl?.trim();
-  if (direct) return direct;
+  const fromApi = store.googleMapsUrl?.trim();
+  if (fromApi) return fromApi;
   const pid = store.placeId?.trim();
   if (pid) return googleMapsSearchByPlaceId(pid);
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${store.name} ${store.address}`)}`;
@@ -46,15 +48,8 @@ function storeHeroUrls(store: NearbyStoreRow): string[] {
 
 function typesLabel(store: NearbyStoreRow): string {
   const raw = store.types?.filter(Boolean);
-  if (!raw?.length) return 'Clothing store';
-  return raw
-    .slice(0, 3)
-    .map((t) =>
-      t
-        .replace(/_/g, ' ')
-        .replace(/\b\w/g, (c) => c.toUpperCase()),
-    )
-    .join(' · ');
+  if (!raw?.length) return 'Fashion / clothing';
+  return raw.slice(0, 3).join(' · ');
 }
 
 export default function NearbyStores() {
@@ -63,6 +58,8 @@ export default function NearbyStores() {
   const [locLabel, setLocLabel] = useState(DEFAULT_LOC.label);
   const [radius, setRadius] = useState(10_000);
   const [openNowOnly, setOpenNowOnly] = useState(false);
+  /** Only set when user clicks "Search stores" — API uses this, not live map drags. */
+  const [searchCenter, setSearchCenter] = useState<SearchCenter | null>(null);
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const [geoBusy, setGeoBusy] = useState(false);
 
@@ -83,18 +80,31 @@ export default function NearbyStores() {
     isError,
     refetch,
   } = useQuery({
-    queryKey: ['nearby-stores', lat, lng, radius, openNowOnly],
-    queryFn: () => fetchNearbyStores(lat, lng, { radius, openNow: openNowOnly }),
+    queryKey: ['nearby-stores', searchCenter?.lat, searchCenter?.lng, searchCenter?.radius, searchCenter?.openNow],
+    queryFn: () =>
+      fetchNearbyStores(searchCenter!.lat, searchCenter!.lng, {
+        radius: searchCenter!.radius,
+        openNow: searchCenter!.openNow,
+      }),
+    enabled: searchCenter != null,
   });
+
+  const runSearch = useCallback(() => {
+    setSearchCenter({ lat, lng, radius, openNow: openNowOnly });
+    setSelectedPlaceId(null);
+  }, [lat, lng, radius, openNowOnly]);
+
+  const originLat = searchCenter?.lat ?? lat;
+  const originLng = searchCenter?.lng ?? lng;
 
   const sorted = useMemo(() => {
     const rows = (stores as NearbyStoreRow[]).map((s) => ({
       store: s,
-      km: haversineKm(lat, lng, s.lat, s.lng),
+      km: haversineKm(originLat, originLng, s.lat, s.lng),
     }));
     rows.sort((a, b) => a.km - b.km);
     return rows;
-  }, [stores, lat, lng]);
+  }, [stores, originLat, originLng]);
 
   const useMyLocation = useCallback(() => {
     if (!navigator.geolocation) {
@@ -161,7 +171,7 @@ export default function NearbyStores() {
                 <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden />
                 <div className="min-w-0">
                   <h1 className="font-display-hero text-lg font-semibold leading-tight tracking-tight text-foreground md:text-xl">
-                    Clothing stores near you
+                    Nearby fashion &amp; clothing
                   </h1>
                   <p className="mt-1 text-[11px] text-muted-foreground leading-snug line-clamp-2">
                     <span className="font-medium text-foreground">{locLabel}</span>
@@ -184,13 +194,32 @@ export default function NearbyStores() {
               )}
 
               <div className="flex flex-wrap items-center gap-2">
-                <Button type="button" variant="default" size="sm" onClick={useMyLocation} disabled={geoBusy} className="gap-1.5 h-8 text-xs">
-                  <Navigation className={cn('h-3.5 w-3.5', geoBusy && 'animate-pulse')} />
-                  My location
+                <Button
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  onClick={runSearch}
+                  disabled={loading}
+                  className="gap-1.5 h-9 flex-1 min-w-[9rem] text-xs font-semibold sm:flex-none"
+                >
+                  <Search className={cn('h-3.5 w-3.5', loading && 'animate-pulse')} />
+                  Search stores
                 </Button>
-                <Button type="button" variant="secondary" size="sm" onClick={() => refetch()} disabled={loading} className="gap-1.5 h-8 text-xs">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => refetch()}
+                  disabled={loading || searchCenter == null}
+                  className="gap-1.5 h-9 text-xs"
+                  title="Repeat last search (same pin and filters)"
+                >
                   <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
                   Refresh
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={useMyLocation} disabled={geoBusy} className="gap-1.5 h-9 text-xs">
+                  <Navigation className={cn('h-3.5 w-3.5', geoBusy && 'animate-pulse')} />
+                  My location
                 </Button>
               </div>
 
@@ -200,13 +229,19 @@ export default function NearbyStores() {
                     Radius
                   </Label>
                   <Select value={String(radius)} onValueChange={(v) => setRadius(Number(v))}>
-                    <SelectTrigger id="radius" className="h-8 w-[120px] text-xs">
+                    <SelectTrigger id="radius" className="h-8 w-[132px] text-xs">
                       <SelectValue placeholder="Radius" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="1000">1 km</SelectItem>
+                      <SelectItem value="3000">3 km</SelectItem>
                       <SelectItem value="5000">5 km</SelectItem>
                       <SelectItem value="10000">10 km</SelectItem>
+                      <SelectItem value="15000">15 km</SelectItem>
+                      <SelectItem value="20000">20 km</SelectItem>
+                      <SelectItem value="30000">30 km</SelectItem>
+                      <SelectItem value="40000">40 km</SelectItem>
+                      <SelectItem value="50000">50 km</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -219,12 +254,24 @@ export default function NearbyStores() {
               </div>
 
               <p className="text-[10px] text-muted-foreground leading-relaxed">
-                Tap the <strong className="text-foreground">map</strong> to move the search pin. Each store card opens{' '}
-                <strong className="text-foreground">Google Maps in a new tab</strong>.
+                Set the pin with <strong className="text-foreground">My location</strong>, the search box, or{' '}
+                <strong className="text-foreground">tap the map</strong>, choose radius, then click{' '}
+                <strong className="text-foreground">Search stores</strong> (Places API runs only then — avoids rate limits).
+                Cards open <strong className="text-foreground">Google Maps</strong> in a new tab.
               </p>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 md:px-4 space-y-2.5">
+              {searchCenter == null && !loading && (
+                <div className="rounded-lg border border-dashed border-primary/25 bg-primary/[0.04] p-3 text-xs">
+                  <p className="font-medium text-foreground">Ready to search</p>
+                  <p className="mt-1 text-muted-foreground">
+                    Move the map pin if you like, then press <strong className="text-foreground">Search stores</strong> to load
+                    nearby shops (no API calls until you do).
+                  </p>
+                </div>
+              )}
+
               {loading && (
                 <p className="text-xs text-muted-foreground flex items-center gap-2 py-2">
                   <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
@@ -241,10 +288,10 @@ export default function NearbyStores() {
                 </div>
               )}
 
-              {!loading && !isError && stores.length === 0 && (
+              {searchCenter != null && !loading && !isError && stores.length === 0 && (
                 <div className="rounded-lg border border-border/80 bg-muted/20 p-3 text-xs">
                   <p className="font-medium text-foreground">No stores for this area</p>
-                  <p className="mt-1 text-muted-foreground">Try a larger radius or turn Open now off.</p>
+                  <p className="mt-1 text-muted-foreground">Try a larger radius, turn Open now off, or move the pin and search again.</p>
                 </div>
               )}
 

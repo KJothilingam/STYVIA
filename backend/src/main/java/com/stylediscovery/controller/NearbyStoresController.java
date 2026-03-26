@@ -25,9 +25,9 @@ public class NearbyStoresController {
     /**
      * Nearby clothing stores (Google Places Nearby Search, type=clothing_store).
      *
-     * @param lat    latitude
-     * @param lng    longitude
-     * @param radius search radius in meters (default 5000, clamped 100–50000)
+     * @param lat     latitude
+     * @param lng     longitude
+     * @param radius  search radius in meters (default 5000, clamped 100–50000)
      * @param openNow when true, adds Places {@code opennow=true}
      */
     @GetMapping("/nearby-stores")

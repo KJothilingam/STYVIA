@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -29,7 +30,13 @@ public class AssistantChatService {
     private String openAiKey;
 
     @Value("${app.assistant.model:gpt-4o-mini}")
-    private String model;
+    private String openAiModel;
+
+    @Value("${app.assistant.gemini-api-key:}")
+    private String geminiKey;
+
+    @Value("${app.assistant.gemini-model:gemini-2.0-flash}")
+    private String geminiModel;
 
     private static final HttpClient HTTP = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
@@ -40,13 +47,14 @@ public class AssistantChatService {
             Help with: size & fit (suggest Fit Studio and body profile), navigation (/products, /wardrobe, /donations, /shops),
             sustainability (donations, donation box), and cart/checkout. Keep answers concise, friendly, and actionable.
             If the user asks for medical or body-shaming content, refuse politely and offer generic sizing tips.
+            For general knowledge questions unrelated to shopping, answer helpfully and briefly, then you may gently mention Styvia if relevant.
             """;
 
     public AssistantChatResponse chat(String userMessage) {
         String trimmed = userMessage == null ? "" : userMessage.trim();
         if (trimmed.isEmpty()) {
             return AssistantChatResponse.builder()
-                    .reply("Ask me anything about shopping, fit, wardrobe, or donations.")
+                    .reply("Ask me anything about shopping, fit, wardrobe, donations — or general topics.")
                     .source("rules")
                     .build();
         }
@@ -56,17 +64,91 @@ public class AssistantChatService {
             return rules;
         }
 
-        if (openAiKey == null || openAiKey.isBlank()) {
-            return AssistantChatResponse.builder()
-                    .reply("I’m running in **offline mode**. Set `OPENAI_API_KEY` (or `app.assistant.openai-api-key`) on the server for full AI answers. "
-                            + "Meanwhile: open **Products** to browse, **Fit Studio** from a product page for size help, **Wardrobe** after you buy, and **Donations** to schedule a pickup.")
-                    .source("rules")
-                    .build();
+        if (geminiKey != null && !geminiKey.isBlank()) {
+            AssistantChatResponse gemini = callGemini(trimmed);
+            if (gemini != null) {
+                return gemini;
+            }
         }
 
+        if (openAiKey != null && !openAiKey.isBlank()) {
+            AssistantChatResponse oai = callOpenAi(trimmed);
+            if (oai != null) {
+                return oai;
+            }
+        }
+
+        return AssistantChatResponse.builder()
+                .reply("I don’t have an AI model configured on the server yet. Set **GEMINI_API_KEY** (or **OPENAI_API_KEY**) "
+                        + "for open-ended answers. Meanwhile: **Products** to browse, **Fit Studio** on a product for sizes, **Wardrobe** after you buy, **Donations** for pickups.")
+                .source("rules")
+                .build();
+    }
+
+    private AssistantChatResponse callGemini(String trimmed) {
+        try {
+            String encodedKey = URLEncoder.encode(geminiKey.trim(), StandardCharsets.UTF_8);
+            String url = "https://generativelanguage.googleapis.com/v1beta/models/"
+                    + URLEncoder.encode(geminiModel.trim(), StandardCharsets.UTF_8)
+                    + ":generateContent?key=" + encodedKey;
+
+            ObjectNode rootNode = objectMapper.createObjectNode();
+            ObjectNode sysInstr = rootNode.putObject("systemInstruction");
+            ArrayNode sysParts = sysInstr.putArray("parts");
+            sysParts.addObject().put("text", SYSTEM);
+
+            ArrayNode contents = rootNode.putArray("contents");
+            ObjectNode userTurn = contents.addObject();
+            userTurn.put("role", "user");
+            userTurn.putArray("parts").addObject().put("text", trimmed);
+
+            ObjectNode genCfg = rootNode.putObject("generationConfig");
+            genCfg.put("maxOutputTokens", 1024);
+            genCfg.put("temperature", 0.7);
+
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .timeout(Duration.ofSeconds(45))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(rootNode), StandardCharsets.UTF_8))
+                    .build();
+
+            HttpResponse<String> res = HTTP.send(req, HttpResponse.BodyHandlers.ofString());
+            if (res.statusCode() != 200) {
+                log.warn("Gemini HTTP {} body snippet: {}", res.statusCode(), truncate(res.body(), 200));
+                return null;
+            }
+            JsonNode root = objectMapper.readTree(res.body());
+            JsonNode candidates = root.path("candidates");
+            if (!candidates.isArray() || candidates.isEmpty()) {
+                log.warn("Gemini empty candidates");
+                return null;
+            }
+            JsonNode parts = candidates.get(0).path("content").path("parts");
+            if (!parts.isArray() || parts.isEmpty()) {
+                return null;
+            }
+            StringBuilder text = new StringBuilder();
+            for (JsonNode p : parts) {
+                if (p.has("text")) {
+                    text.append(p.path("text").asText(""));
+                }
+            }
+            String out = text.toString().trim();
+            if (out.isEmpty()) {
+                return null;
+            }
+            return AssistantChatResponse.builder().reply(out).source("gemini").build();
+        } catch (Exception e) {
+            log.warn("Gemini error: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private AssistantChatResponse callOpenAi(String trimmed) {
         try {
             ObjectNode body = objectMapper.createObjectNode();
-            body.put("model", model);
+            body.put("model", openAiModel);
             ArrayNode messages = body.putArray("messages");
             ObjectNode sys = messages.addObject();
             sys.put("role", "system");
@@ -86,32 +168,28 @@ public class AssistantChatService {
             HttpResponse<String> res = HTTP.send(req, HttpResponse.BodyHandlers.ofString());
             if (res.statusCode() != 200) {
                 log.warn("OpenAI HTTP {}", res.statusCode());
-                return fallback(trimmed);
+                return null;
             }
             JsonNode root = objectMapper.readTree(res.body());
             String text = root.path("choices").path(0).path("message").path("content").asText("").trim();
             if (text.isEmpty()) {
-                return fallback(trimmed);
+                return null;
             }
             return AssistantChatResponse.builder().reply(text).source("openai").build();
         } catch (Exception e) {
             log.debug("OpenAI error: {}", e.getMessage());
-            return fallback(trimmed);
+            return null;
         }
     }
 
-    private AssistantChatResponse fallback(String trimmed) {
-        AssistantChatResponse r = ruleBasedReply(trimmed);
-        if (r != null) return r;
-        return AssistantChatResponse.builder()
-                .reply("I couldn’t reach the AI service. Try again shortly, or browse **Products** and use **Fit Studio** for sizing.")
-                .source("rules")
-                .build();
+    private static String truncate(String s, int max) {
+        if (s == null) return "";
+        return s.length() <= max ? s : s.substring(0, max) + "…";
     }
 
     private AssistantChatResponse ruleBasedReply(String m) {
         String low = m.toLowerCase(Locale.ROOT);
-        if (low.contains("fit") || low.contains("size") || low.contains("shirt")) {
+        if (low.contains("fit") || low.contains("size") || low.contains("shirt") || low.contains("measure")) {
             return AssistantChatResponse.builder()
                     .reply("For the best size match: open any product → **Fit Studio** (or `/fit-studio/{productId}`). Save your **body profile** under **Profile** so scores stay accurate.")
                     .source("rules")
@@ -141,9 +219,27 @@ public class AssistantChatService {
                     .source("rules")
                     .build();
         }
-        if (low.contains("hello") || low.contains("hi ") || low.equals("hi")) {
+        if (low.contains("product") && (low.contains("where") || low.contains("browse") || low.contains("find"))) {
             return AssistantChatResponse.builder()
-                    .reply("Hi! I’m the Styvia assistant — ask about fit, wardrobe, donations, or finding stores nearby.")
+                    .reply("Browse the catalog from **Products** (`/products`) — filter by category, search, or open any item for details and **Fit Studio**.")
+                    .source("rules")
+                    .build();
+        }
+        if (low.contains("profile") || low.contains("body profile") || low.contains("/body")) {
+            return AssistantChatResponse.builder()
+                    .reply("Update your measurements in **Body profile** (`/body`) — used across Fit Studio and personalized fit hints.")
+                    .source("rules")
+                    .build();
+        }
+        if (low.contains("hello") || low.contains("hi ") || low.equals("hi") || low.startsWith("hey")) {
+            return AssistantChatResponse.builder()
+                    .reply("Hi! I’m the Styvia assistant — ask about fit, wardrobe, donations, stores, or anything else.")
+                    .source("rules")
+                    .build();
+        }
+        if (low.contains("thank")) {
+            return AssistantChatResponse.builder()
+                    .reply("You’re welcome — happy shopping with Styvia!")
                     .source("rules")
                     .build();
         }

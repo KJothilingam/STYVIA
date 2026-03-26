@@ -1,6 +1,9 @@
 /**
- * Maps JavaScript API key (browser). Env vars override when set.
- * Rotate this key if the repo is public; prefer VITE_GOOGLE_MAPS_API_KEY in production.
+ * Maps JavaScript API + Places Autocomplete (browser).
+ * Also configured on the server in application.yml:
+ * - places-api-key: Places Nearby Search + Photo (AIzaSyD8SvH5aZN2PJOQ7YxuQ0Eh0TpUFWY2V94)
+ * - geocoding-api-key: Geocoding REST (AIzaSyA-mQkSyn27E8xHasFL7J5Gr8RixbpsnRA)
+ * Env VITE_GOOGLE_MAPS_API_KEY overrides this when set.
  */
 const EMBEDDED_MAPS_JS_KEY = 'AIzaSyCG1I9it7DgAvX5YlgkVkwKgMxTykziy4U';
 

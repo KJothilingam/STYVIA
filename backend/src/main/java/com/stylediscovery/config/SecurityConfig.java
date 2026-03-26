@@ -87,6 +87,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/files/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/donations/drop-verify/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/nearby-stores").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/maps/reverse-geocode").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/shops/nearby").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")

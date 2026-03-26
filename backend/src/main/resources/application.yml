@@ -62,12 +62,17 @@ app:
     rule-weight: 0.7
     ml-weight: 0.3
   google:
-    # Server-side Places Nearby Search (REST). Env GOOGLE_PLACES_API_KEY overrides. Embedded default for local dev only.
+    # Server: Places Nearby Search + Place Photos (inline defaults; optional env override).
     places-api-key: ${GOOGLE_PLACES_API_KEY:AIzaSyD8SvH5aZN2PJOQ7YxuQ0Eh0TpUFWY2V94}
+    # Server: Geocoding REST (reverse lat/lng → address for map clicks).
+    geocoding-api-key: ${GOOGLE_GEOCODING_API_KEY:AIzaSyA-mQkSyn27E8xHasFL7J5Gr8RixbpsnRA}
   assistant:
-    # Optional OpenAI key for /api/v1/assistant/chat (rule-based fallback if blank).
+    # Optional OpenAI key for /api/v1/assistant/chat (used after Gemini if Gemini is unset or fails).
     openai-api-key: ${OPENAI_API_KEY:}
     model: ${OPENAI_MODEL:gpt-4o-mini}
+    # Google Gemini — default key inline (override with GEMINI_API_KEY if needed).
+    gemini-api-key: ${GEMINI_API_KEY:AIzaSyDOI8QRS3144MU5g6n55-96mLSYfrkJB44}
+    gemini-model: ${GEMINI_MODEL:gemini-2.0-flash}
 
 # Logging
 logging:

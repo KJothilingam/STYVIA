@@ -8,6 +8,10 @@ export interface NearbyStore {
   openNow: boolean;
   address: string;
   placeId: string;
+  googleMapsUrl?: string | null;
+  photoUrl?: string | null;
+  userRatingsTotal?: number | null;
+  types?: string[] | null;
 }
 
 export interface NearbyStoresQuery {

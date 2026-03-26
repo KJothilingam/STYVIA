@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { GoogleMap, InfoWindow, Marker } from '@react-google-maps/api';
 import { Button } from '@/components/ui/button';
 import type { NearbyStore } from '@/services/nearbyStoresService';
+import { reverseGeocode } from '@/services/mapsService';
 import { googleMapsDirectionsTo, googleMapsSearchByPlaceId } from '@/lib/geo';
 
 const mapContainerStyle: CSSProperties = {
@@ -103,17 +104,12 @@ export function MapComponent({
 
   const resolveAddress = useCallback(
     (plat: number, plng: number) => {
-      if (!onReverseGeocode || !mapApiReady) return;
-      const geocoder = new google.maps.Geocoder();
-      geocoder.geocode({ location: { lat: plat, lng: plng } }, (results, status) => {
-        if (status === 'OK' && results?.[0]?.formatted_address) {
-          onReverseGeocode(results[0].formatted_address);
-        } else {
-          onReverseGeocode(`Map point (${plat.toFixed(5)}, ${plng.toFixed(5)})`);
-        }
-      });
+      if (!onReverseGeocode) return;
+      void reverseGeocode(plat, plng)
+        .then(onReverseGeocode)
+        .catch(() => onReverseGeocode(`Map point (${plat.toFixed(5)}, ${plng.toFixed(5)})`));
     },
-    [mapApiReady, onReverseGeocode],
+    [onReverseGeocode],
   );
 
   const userIcon: google.maps.Icon | undefined = mapApiReady

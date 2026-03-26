@@ -17,7 +17,10 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -33,15 +36,22 @@ public class ShopDiscoveryService {
             .connectTimeout(Duration.ofSeconds(5))
             .build();
 
-    private static final int MAX_RESULTS = 20;
+    private static final int MAX_MERGED_RESULTS = 24;
+    private static final int PER_TYPE_SOFT_CAP = 12;
+
+    /** Clothing & fashion-related Nearby Search types (one request each; merged, deduped). */
+    private static final String[] FASHION_NEARBY_TYPES = {
+            "clothing_store",
+            "shoe_store",
+            "shopping_mall",
+    };
 
     public List<ShopPlaceDTO> findNearbyClothingStores(double lat, double lng, int radiusMeters) {
         return findNearbyClothingStores(lat, lng, radiusMeters, false);
     }
 
     /**
-     * Calls Google Places Nearby Search. Returns an empty list when the key is missing, on HTTP/API errors,
-     * or when there are zero results (no mock data).
+     * Google Places Nearby Search — multiple types merged by {@code place_id}.
      */
     public List<ShopPlaceDTO> findNearbyClothingStores(double lat, double lng, int radiusMeters, boolean openNowOnly) {
         if (placesApiKey == null || placesApiKey.isBlank()) {
@@ -49,12 +59,38 @@ public class ShopDiscoveryService {
             return Collections.emptyList();
         }
         int radius = Math.min(Math.max(radiusMeters, 100), 50_000);
+        String key = placesApiKey.trim();
+
+        Map<String, ShopPlaceDTO> byPlaceId = new LinkedHashMap<>();
+        for (String type : FASHION_NEARBY_TYPES) {
+            List<ShopPlaceDTO> batch = fetchNearbyForType(lat, lng, radius, openNowOnly, type, key);
+            for (ShopPlaceDTO p : batch) {
+                if (p.getPlaceId() != null && !p.getPlaceId().isBlank()) {
+                    byPlaceId.putIfAbsent(p.getPlaceId(), p);
+                }
+            }
+            if (byPlaceId.size() >= MAX_MERGED_RESULTS) {
+                break;
+            }
+        }
+        return new ArrayList<>(byPlaceId.values()).stream().limit(MAX_MERGED_RESULTS).toList();
+    }
+
+    private List<ShopPlaceDTO> fetchNearbyForType(
+            double lat,
+            double lng,
+            int radiusMeters,
+            boolean openNowOnly,
+            String placeType,
+            String apiKey) {
+        List<ShopPlaceDTO> out = new ArrayList<>();
         try {
             String loc = URLEncoder.encode(lat + "," + lng, StandardCharsets.UTF_8);
-            String keyEnc = URLEncoder.encode(placesApiKey, StandardCharsets.UTF_8);
+            String typeEnc = URLEncoder.encode(placeType, StandardCharsets.UTF_8);
+            String keyEnc = URLEncoder.encode(apiKey, StandardCharsets.UTF_8);
             StringBuilder url = new StringBuilder(String.format(
-                    "https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=%s&radius=%d&type=clothing_store&key=%s",
-                    loc, radius, keyEnc));
+                    "https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=%s&radius=%d&type=%s&key=%s",
+                    loc, radiusMeters, typeEnc, keyEnc));
             if (openNowOnly) {
                 url.append("&opennow=true");
             }
@@ -65,47 +101,105 @@ public class ShopDiscoveryService {
                     .build();
             HttpResponse<String> res = HTTP.send(req, HttpResponse.BodyHandlers.ofString());
             if (res.statusCode() != 200) {
-                log.warn("Places Nearby Search HTTP status {}", res.statusCode());
-                return Collections.emptyList();
+                log.warn("Places Nearby Search HTTP status {} type={}", res.statusCode(), placeType);
+                return out;
             }
             JsonNode root = objectMapper.readTree(res.body());
             String status = root.path("status").asText("");
             if ("ZERO_RESULTS".equals(status)) {
-                return Collections.emptyList();
+                return out;
             }
             if (!"OK".equals(status)) {
                 String errMsg = root.path("error_message").asText("");
-                log.warn(
-                        "Places Nearby Search status={} error_message={}. If status=REQUEST_DENIED, use a server key: "
-                                + "Application restrictions must NOT be 'HTTP referrers' (Java has no referrer). "
-                                + "Use separate keys: browser key (referrers) for VITE_GOOGLE_MAPS_API_KEY, "
-                                + "server key (IP or none) for GOOGLE_PLACES_API_KEY.",
-                        status,
-                        errMsg);
-                return Collections.emptyList();
+                log.warn("Places Nearby Search status={} type={} err={}", status, placeType, errMsg);
+                return out;
             }
-            List<ShopPlaceDTO> out = new ArrayList<>();
             for (JsonNode r : root.path("results")) {
-                double rlat = r.path("geometry").path("location").path("lat").asDouble();
-                double rlng = r.path("geometry").path("location").path("lng").asDouble();
-                boolean open = r.path("opening_hours").path("open_now").asBoolean(false);
-                out.add(ShopPlaceDTO.builder()
-                        .name(r.path("name").asText("Store"))
-                        .address(r.path("vicinity").asText(""))
-                        .lat(rlat)
-                        .lng(rlng)
-                        .rating(r.path("rating").isMissingNode() ? null : r.path("rating").asDouble())
-                        .placeId(r.path("place_id").asText(""))
-                        .openNow(open)
-                        .build());
-                if (out.size() >= MAX_RESULTS) {
+                ShopPlaceDTO dto = parsePlace(r, apiKey);
+                if (dto != null) {
+                    out.add(dto);
+                }
+                if (out.size() >= PER_TYPE_SOFT_CAP) {
                     break;
                 }
             }
-            return out;
         } catch (Exception e) {
-            log.warn("Places lookup failed: {}", e.getMessage());
-            return Collections.emptyList();
+            log.warn("Places lookup type={} failed: {}", placeType, e.getMessage());
         }
+        return out;
+    }
+
+    private ShopPlaceDTO parsePlace(JsonNode r, String apiKey) {
+        String placeId = r.path("place_id").asText("").trim();
+        if (placeId.isEmpty()) {
+            return null;
+        }
+        double rlat = r.path("geometry").path("location").path("lat").asDouble();
+        double rlng = r.path("geometry").path("location").path("lng").asDouble();
+        boolean open = r.path("opening_hours").path("open_now").asBoolean(false);
+        String name = r.path("name").asText("Store");
+        String vicinity = r.path("vicinity").asText("");
+        Double rating = r.path("rating").isMissingNode() ? null : r.path("rating").asDouble();
+        int userRatingsTotal = r.path("user_ratings_total").asInt(0);
+
+        List<String> types = new ArrayList<>();
+        for (JsonNode t : r.path("types")) {
+            String raw = t.asText("").replace("_", " ").trim();
+            if (!raw.isEmpty()) {
+                types.add(capitalizeWords(raw));
+            }
+        }
+        if (types.isEmpty()) {
+            types = null;
+        }
+
+        String googleMapsUrl;
+        try {
+            googleMapsUrl = "https://www.google.com/maps/search/?api=1&query_place_id="
+                    + URLEncoder.encode(placeId, StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            googleMapsUrl = null;
+        }
+
+        String photoUrl = null;
+        JsonNode photos = r.path("photos");
+        if (photos.isArray() && !photos.isEmpty()) {
+            String ref = photos.get(0).path("photo_reference").asText("").trim();
+            if (!ref.isEmpty()) {
+                try {
+                    photoUrl = "https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference="
+                            + URLEncoder.encode(ref, StandardCharsets.UTF_8)
+                            + "&key="
+                            + URLEncoder.encode(apiKey, StandardCharsets.UTF_8);
+                } catch (Exception ignored) {
+                    photoUrl = null;
+                }
+            }
+        }
+
+        return ShopPlaceDTO.builder()
+                .name(name)
+                .address(vicinity)
+                .lat(rlat)
+                .lng(rlng)
+                .rating(rating)
+                .placeId(placeId)
+                .openNow(open)
+                .googleMapsUrl(googleMapsUrl)
+                .photoUrl(photoUrl)
+                .userRatingsTotal(userRatingsTotal > 0 ? userRatingsTotal : null)
+                .types(types)
+                .build();
+    }
+
+    private static String capitalizeWords(String s) {
+        String[] parts = s.toLowerCase(Locale.ROOT).split("\\s+");
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < parts.length; i++) {
+            if (i > 0) sb.append(' ');
+            if (parts[i].isEmpty()) continue;
+            sb.append(Character.toUpperCase(parts[i].charAt(0))).append(parts[i].substring(1));
+        }
+        return sb.toString();
     }
 }

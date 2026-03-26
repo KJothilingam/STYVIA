@@ -238,7 +238,7 @@ export default function BodyProfile() {
   if (loading) {
     return (
       <Layout>
-        <div className="container mx-auto flex min-h-[40vh] items-center justify-center px-4">
+        <div className="mx-auto flex min-h-[40vh] w-full max-w-[1600px] items-center justify-center px-4 sm:px-6 lg:px-8">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       </Layout>
@@ -247,7 +247,7 @@ export default function BodyProfile() {
 
   return (
     <Layout>
-      <div className="container mx-auto max-w-3xl px-4 py-8 pb-24">
+      <div className="mx-auto w-full max-w-[1600px] px-4 py-8 pb-24 sm:px-6 lg:px-8 xl:px-10 2xl:px-12">
         <nav className="mb-6 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
           <Link to="/profile" className="inline-flex items-center gap-1 hover:text-primary">
             <ArrowLeft className="h-4 w-4" />
@@ -257,14 +257,16 @@ export default function BodyProfile() {
           <span className="text-foreground font-medium">Body profile</span>
         </nav>
 
-        <header className="mb-8 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
+        <header className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between lg:gap-8">
+          <div className="min-w-0 flex-1">
             <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-intelligence-mid/30 bg-intelligence-deep/[0.06] px-3 py-1 text-xs font-bold uppercase tracking-widest text-intelligence-mid">
               <Sparkles className="h-3.5 w-3.5" />
               Body intelligence
             </div>
-            <h1 className="font-display-hero text-3xl font-semibold tracking-tight text-foreground">Your measurements</h1>
-            <p className="mt-1 text-sm text-muted-foreground max-w-lg">
+            <h1 className="font-display-hero text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+              Your measurements
+            </h1>
+            <p className="mt-2 max-w-3xl text-sm text-muted-foreground sm:text-base">
               Structured sections — about 30 seconds. Used for fit recommendations across the shop.
             </p>
           </div>
@@ -274,7 +276,7 @@ export default function BodyProfile() {
             onValueChange={(v) => {
               if (v === 'quick' || v === 'detailed') setMode(v);
             }}
-            className="inline-flex w-full max-w-[280px] justify-stretch rounded-lg border bg-muted/50 p-1 sm:w-auto sm:max-w-none"
+            className="inline-flex w-full shrink-0 justify-stretch rounded-lg border bg-muted/50 p-1 sm:max-w-[320px] lg:w-auto lg:max-w-none"
           >
             <ToggleGroupItem
               value="quick"
@@ -303,15 +305,15 @@ export default function BodyProfile() {
           </ToggleGroup>
         </header>
 
-        <div className="space-y-10">
+        <div className="space-y-8">
           {/* 1. Basic info */}
-          <section className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
+          <section className="rounded-2xl border border-border/80 bg-card p-5 shadow-sm sm:p-7">
             <div className="mb-5 flex items-center gap-2">
               <UserRound className="h-5 w-5 text-primary" />
               <h2 className="text-lg font-bold tracking-tight">Basic info</h2>
             </div>
-            <div className="space-y-8">
-              <div>
+            <div className="grid gap-8 lg:grid-cols-2 lg:gap-x-10 lg:gap-y-6">
+              <div className="min-w-0">
                 <div className="mb-3 flex items-center justify-between gap-4">
                   <Label className="text-base font-semibold">Height</Label>
                   <span className="tabular-nums text-lg font-bold text-primary">{Math.round(heightCm)} cm</span>
@@ -329,7 +331,7 @@ export default function BodyProfile() {
                   <span>220 cm</span>
                 </div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="mb-3 flex items-center justify-between gap-4">
                   <Label className="text-base font-semibold">Weight</Label>
                   <span className="tabular-nums text-lg font-bold text-primary">{weightKg.toFixed(1)} kg</span>
@@ -347,7 +349,7 @@ export default function BodyProfile() {
                   <span>160 kg</span>
                 </div>
               </div>
-              <div>
+              <div className="lg:col-span-2">
                 <Label className="mb-3 block text-base font-semibold">Gender</Label>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {GENDERS.map((g) => (
@@ -374,10 +376,10 @@ export default function BodyProfile() {
           </section>
 
           {/* 2. Body type */}
-          <section className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
+          <section className="rounded-2xl border border-border/80 bg-card p-5 shadow-sm sm:p-7">
             <h2 className="mb-1 text-lg font-bold tracking-tight">Body type</h2>
             <p className="mb-5 text-sm text-muted-foreground">Tap the shape that matches you best.</p>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:gap-4">
               {BODY_SHAPES.map(({ value, label, hint }) => (
                 <button
                   key={value}
@@ -400,7 +402,7 @@ export default function BodyProfile() {
 
           {/* 3. Measurements (detailed only) */}
           {mode === 'detailed' && (
-            <section className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
+            <section className="rounded-2xl border border-border/80 bg-card p-5 shadow-sm sm:p-7">
               <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <h2 className="text-lg font-bold tracking-tight">Measurements</h2>
@@ -450,7 +452,7 @@ export default function BodyProfile() {
           )}
 
           {/* Usual sizes (for fit check vs selected size on PDP) */}
-          <section className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
+          <section className="rounded-2xl border border-border/80 bg-card p-5 shadow-sm sm:p-7">
             <h2 className="mb-1 text-lg font-bold tracking-tight">Sizes you usually buy</h2>
             <p className="mb-5 text-sm text-muted-foreground">
               On <strong className="font-medium text-foreground">Check fit</strong>, we compare the size you select on
@@ -554,7 +556,7 @@ export default function BodyProfile() {
           </section>
 
           {/* 4. Fit preference */}
-          <section className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
+          <section className="rounded-2xl border border-border/80 bg-card p-5 shadow-sm sm:p-7">
             <h2 className="mb-1 text-lg font-bold tracking-tight">Fit preference</h2>
             <p className="mb-5 text-sm text-muted-foreground">How you like clothes to feel.</p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -597,7 +599,7 @@ export default function BodyProfile() {
           </section>
 
           {mode === 'quick' && (
-            <p className="text-center text-sm text-muted-foreground">
+            <p className="rounded-xl border border-dashed border-border/80 bg-muted/20 px-4 py-3 text-center text-sm text-muted-foreground">
               Quick mode uses smart estimates for chest, waist, and proportions. Switch to{' '}
               <button type="button" className="font-semibold text-primary underline" onClick={() => setMode('detailed')}>
                 Detailed
@@ -608,7 +610,7 @@ export default function BodyProfile() {
         </div>
 
         <div className="fixed bottom-0 left-0 right-0 z-40 border-t bg-background/95 p-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:static md:z-0 md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-none">
-          <div className="container mx-auto flex max-w-3xl justify-end px-4 md:px-0">
+          <div className="mx-auto flex w-full max-w-[1600px] justify-end px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 md:px-0">
             <Button size="lg" className="w-full gap-2 sm:w-auto min-w-[200px]" onClick={handleSave} disabled={saving}>
               {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />}
               Save profile

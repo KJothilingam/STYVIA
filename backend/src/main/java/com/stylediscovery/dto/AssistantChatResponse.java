@@ -11,6 +11,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class AssistantChatResponse {
     private String reply;
-    /** "openai" or "rules" */
+    /** "rules", "gemini", or "openai" */
     private String source;
 }
