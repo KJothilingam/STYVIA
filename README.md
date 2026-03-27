@@ -68,11 +68,15 @@ Backend will start on `http://localhost:8080`
 # 1. Install dependencies
 npm install
 
-# 2. Start development server
+# 2. (Optional) Copy .env.example → .env.development if API is not on localhost:8080
+
+# 3. Start development server
 npm run dev
 ```
 
-Frontend will start on `http://localhost:8080`
+Frontend dev server: **`http://localhost:5173`** (Vite). Backend API stays on **`http://localhost:8080`**.
+
+**Teammates / new clones:** see **[SETUP.md](./SETUP.md)** for images, database, and common errors.
 
 ## 🛠️ Tech Stack
 
