@@ -30,7 +30,7 @@ const Checkout = () => {
   const [showAddAddress, setShowAddAddress] = useState(false);
   const [placing, setPlacing] = useState(false);
 
-  const { cart, addresses, addAddress, addOrder, clearCart, cartTotal, isLoggedIn } = useStore();
+  const { cart, addresses, addAddress, addOrder, clearCart, syncCartToServer, cartTotal, isLoggedIn } = useStore();
   const { snapshots, loading: fitLoading, hasProfile } = useCartFitSnapshots(cart, isLoggedIn);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -109,11 +109,30 @@ const Checkout = () => {
       toast({ title: 'Choose a delivery address', variant: 'destructive' });
       return;
     }
+    const addressId = Number(address.id);
+    if (!Number.isFinite(addressId) || addressId <= 0) {
+      toast({
+        title: 'Address not saved on the server',
+        description: 'Add the address again so we can deliver to you.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setPlacing(true);
     try {
+      const synced = await syncCartToServer();
+      if (!synced) {
+        toast({
+          title: 'Cart could not be saved',
+          description:
+            'Your bag is only on this device or the catalog id is invalid. Try re-adding items from the shop, or refresh and try again.',
+          variant: 'destructive',
+        });
+        return;
+      }
       const paymentMap = { cod: 'COD', card: 'CARD', upi: 'UPI', net_banking: 'NET_BANKING' } as const;
       const res = await orderService.placeOrder({
-        addressId: Number(address.id),
+        addressId,
         paymentMethod: paymentMap[paymentMethod as keyof typeof paymentMap] || 'COD',
       });
       addOrder({

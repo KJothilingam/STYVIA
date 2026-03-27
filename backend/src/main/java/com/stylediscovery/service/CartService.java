@@ -5,7 +5,6 @@ import com.stylediscovery.dto.CartItemDTO;
 import com.stylediscovery.dto.ProductDTO;
 import com.stylediscovery.entity.*;
 import com.stylediscovery.exception.BadRequestException;
-import com.stylediscovery.exception.InsufficientStockException;
 import com.stylediscovery.exception.ResourceNotFoundException;
 import com.stylediscovery.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -23,6 +23,9 @@ import java.util.stream.Collectors;
 public class CartService {
 
     private static final Logger logger = LoggerFactory.getLogger(CartService.class);
+
+    /** Demo / dev: never block checkout for stock — top up or create rows as needed. */
+    private static final int UNLIMITED_STOCK_BUFFER = 50_000;
 
     private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
@@ -66,31 +69,17 @@ public class CartService {
         Product product = productRepository.findById(request.getProductId())
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
 
-        // Get inventory for size and color
-        Inventory inventory = inventoryRepository
-                .findByProductIdAndSizeAndColor(product.getId(), request.getSize(), request.getColor())
-                .orElseThrow(() -> new BadRequestException("Product not available in selected size and color"));
+        Inventory inventory = ensureInventoryLine(
+                product, request.getSize(), request.getColor(), request.getQuantity());
 
-        // Check stock
-        if (inventory.getStockQuantity() < request.getQuantity()) {
-            throw new InsufficientStockException(
-                    String.format("Insufficient stock. Available: %d, Requested: %d", 
-                            inventory.getStockQuantity(), request.getQuantity())
-            );
-        }
-
-        // Check if item already exists in cart
         CartItem existingItem = cartItemRepository
                 .findByCartIdAndProductIdAndInventoryId(cart.getId(), product.getId(), inventory.getId())
                 .orElse(null);
 
         CartItem cartItem;
         if (existingItem != null) {
-            // Update quantity
             int newQuantity = existingItem.getQuantity() + request.getQuantity();
-            if (inventory.getStockQuantity() < newQuantity) {
-                throw new InsufficientStockException("Cannot add more items. Stock limit reached");
-            }
+            inventory = topUpInventoryIfNeeded(inventory.getId(), newQuantity);
             existingItem.setQuantity(newQuantity);
             cartItem = cartItemRepository.save(existingItem);
         } else {
@@ -127,10 +116,7 @@ public class CartService {
             throw new BadRequestException("Cart item does not belong to user");
         }
 
-        // Check stock
-        if (cartItem.getInventory().getStockQuantity() < quantity) {
-            throw new InsufficientStockException("Insufficient stock");
-        }
+        topUpInventoryIfNeeded(cartItem.getInventory().getId(), quantity);
 
         cartItem.setQuantity(quantity);
         CartItem updated = cartItemRepository.save(cartItem);
@@ -189,6 +175,110 @@ public class CartService {
                 .quantity(cartItem.getQuantity())
                 .subtotal(subtotal)
                 .build();
+    }
+
+    /**
+     * Ensures an inventory row exists and has enough stock (auto top-up / create). Does not fail on empty stock.
+     */
+    private Inventory ensureInventoryLine(Product product, String sizeRaw, String colorRaw, int minQuantity) {
+        String size = normalizeSize(sizeRaw);
+        String color = normalizeColor(colorRaw);
+        int need = Math.max(minQuantity, 1);
+
+        Optional<Inventory> exact = inventoryRepository.findByProductIdAndSizeAndColor(product.getId(), size, color);
+        if (exact.isPresent()) {
+            return topUpInventoryIfNeeded(exact.get().getId(), need);
+        }
+
+        List<Inventory> all = inventoryRepository.findByProductId(product.getId());
+        List<Inventory> avail = all.stream()
+                .filter(i -> i.getStockQuantity() != null && i.getStockQuantity() > 0)
+                .toList();
+        if (!avail.isEmpty()) {
+            return topUpInventoryIfNeeded(pickClosestInventoryRow(avail, size, color).getId(), need);
+        }
+        if (!all.isEmpty()) {
+            logger.debug("Product {} has only zero-stock rows; topping up a matching line", product.getId());
+            return topUpInventoryIfNeeded(pickClosestInventoryRow(all, size, color).getId(), need);
+        }
+
+        Inventory created = Inventory.builder()
+                .product(product)
+                .size(truncate(size, 10))
+                .color(truncate(color, 100))
+                .stockQuantity(Math.max(need + UNLIMITED_STOCK_BUFFER, UNLIMITED_STOCK_BUFFER))
+                .build();
+        logger.info("Auto-created inventory for productId={} size={} color={}", product.getId(), size, color);
+        return inventoryRepository.save(created);
+    }
+
+    private Inventory topUpInventoryIfNeeded(Long inventoryId, int minQuantity) {
+        Inventory inv = inventoryRepository.findById(inventoryId)
+                .orElseThrow(() -> new ResourceNotFoundException("Inventory not found: " + inventoryId));
+        int need = Math.max(minQuantity, 1);
+        if (inv.getStockQuantity() == null || inv.getStockQuantity() < need) {
+            inv.setStockQuantity(Math.max(need + UNLIMITED_STOCK_BUFFER, UNLIMITED_STOCK_BUFFER));
+            inv = inventoryRepository.save(inv);
+            logger.debug("Topped up inventory id={} to {}", inv.getId(), inv.getStockQuantity());
+        }
+        return inv;
+    }
+
+    private static String normalizeSize(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "M";
+        }
+        return truncate(raw.trim(), 10);
+    }
+
+    private static String normalizeColor(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "Default";
+        }
+        return truncate(raw.trim(), 100);
+    }
+
+    private static String truncate(String s, int maxLen) {
+        if (s.length() <= maxLen) {
+            return s;
+        }
+        return s.substring(0, maxLen);
+    }
+
+    private static Inventory pickClosestInventoryRow(List<Inventory> avail, String sizeTrim, String colorTrim) {
+        if (avail.size() == 1) {
+            return avail.get(0);
+        }
+        if (sizeTrim.isEmpty() && colorTrim.isEmpty()) {
+            return avail.get(0);
+        }
+
+        List<Inventory> bySize = avail.stream()
+                .filter(i -> i.getSize() != null && i.getSize().trim().equalsIgnoreCase(sizeTrim))
+                .toList();
+        if (!bySize.isEmpty()) {
+            if (colorTrim.isEmpty()) {
+                return bySize.get(0);
+            }
+            Optional<Inventory> byColor = bySize.stream()
+                    .filter(i -> i.getColor() != null && i.getColor().trim().equalsIgnoreCase(colorTrim))
+                    .findFirst();
+            if (byColor.isPresent()) {
+                return byColor.get();
+            }
+            return bySize.get(0);
+        }
+
+        if (!colorTrim.isEmpty()) {
+            Optional<Inventory> byColorOnly = avail.stream()
+                    .filter(i -> i.getColor() != null && i.getColor().trim().equalsIgnoreCase(colorTrim))
+                    .findFirst();
+            if (byColorOnly.isPresent()) {
+                return byColorOnly.get();
+            }
+        }
+
+        return avail.get(0);
     }
 }
 

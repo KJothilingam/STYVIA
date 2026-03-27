@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
+import java.util.Optional;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
@@ -25,6 +26,8 @@ import java.util.Locale;
 public class AssistantChatService {
 
     private final ObjectMapper objectMapper;
+    private final AssistantFaqService assistantFaqService;
+    private final AssistantIntentResolver intentResolver;
 
     @Value("${app.assistant.openai-api-key:}")
     private String openAiKey;
@@ -59,6 +62,16 @@ public class AssistantChatService {
                     .build();
         }
 
+        Optional<AssistantChatResponse> faqHit = assistantFaqService.match(trimmed);
+        if (faqHit.isPresent()) {
+            return faqHit.get();
+        }
+
+        Optional<AssistantChatResponse> navigated = intentResolver.resolve(trimmed);
+        if (navigated.isPresent()) {
+            return navigated.get();
+        }
+
         AssistantChatResponse rules = ruleBasedReply(trimmed);
         if (rules != null) {
             return rules;
@@ -79,8 +92,7 @@ public class AssistantChatService {
         }
 
         return AssistantChatResponse.builder()
-                .reply("I don’t have an AI model configured on the server yet. Set **GEMINI_API_KEY** (or **OPENAI_API_KEY**) "
-                        + "for open-ended answers. Meanwhile: **Products** to browse, **Fit Studio** on a product for sizes, **Wardrobe** after you buy, **Donations** for pickups.")
+                .reply("Sorry for the inconvenience, I couldn't find an answer to that.")
                 .source("rules")
                 .build();
     }
@@ -189,6 +201,33 @@ public class AssistantChatService {
 
     private AssistantChatResponse ruleBasedReply(String m) {
         String low = m.toLowerCase(Locale.ROOT);
+        if (low.contains("what is your name")
+                || low.contains("what's your name")
+                || low.contains("who are you")
+                || (low.contains("your name") && (low.contains("what") || low.contains("who")))) {
+            return AssistantChatResponse.builder()
+                    .reply("I’m **Styvia**, your in-app style assistant — here to help with products, fit, wardrobe, donations, and stores.")
+                    .source("rules")
+                    .build();
+        }
+        if (low.contains("what can you do")
+                || low.contains("what do you do")
+                || low.contains("how can you help")) {
+            return AssistantChatResponse.builder()
+                    .reply("I can **browse** categories (men, women, kids, accessories), **search** products, open **Fit Studio** from a product, **Wardrobe**, **Donations** / donation box, **nearby shops**, **cart** & checkout, and answer general questions when AI is enabled.")
+                    .source("rules")
+                    .build();
+        }
+        if (low.equals("bye")
+                || low.startsWith("bye ")
+                || low.startsWith("goodbye")
+                || low.contains("see you")
+                || low.contains("talk later")) {
+            return AssistantChatResponse.builder()
+                    .reply("Goodbye — enjoy styling with Styvia!")
+                    .source("rules")
+                    .build();
+        }
         if (low.contains("fit") || low.contains("size") || low.contains("shirt") || low.contains("measure")) {
             return AssistantChatResponse.builder()
                     .reply("For the best size match: open any product → **Fit Studio** (or `/fit-studio/{productId}`). Save your **body profile** under **Profile** so scores stay accurate.")

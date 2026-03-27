@@ -75,7 +75,7 @@ function pickupStatusLabel(status: string) {
     REQ_ACCEPTED: 'Request accepted',
     EXPECTED_PICK_DATE: 'Pickup scheduled',
     COMPLETED: 'Completed',
-    CANCELLED: 'Cancelled',
+    CANCELLED: 'Rejected',
     SCHEDULED: 'Scheduled',
     PICKED_UP: 'Picked up',
   };
@@ -119,7 +119,7 @@ function boxStatusLabel(status: string) {
     REQ_ACCEPTED: 'Approved',
     EXPECTED_DELIVERY: 'Delivery scheduled',
     COMPLETED: 'Delivered',
-    CANCELLED: 'Cancelled',
+    CANCELLED: 'Rejected',
     REQUESTED: 'Pending',
     BOX_SHIPPED: 'Delivery scheduled',
     BOX_DELIVERED: 'Delivered',
@@ -401,6 +401,7 @@ export default function Donations() {
       REQ_ACCEPTED: list.filter((r) => r.status === 'REQ_ACCEPTED').length,
       EXPECTED_PICK_DATE: list.filter((r) => r.status === 'EXPECTED_PICK_DATE').length,
       COMPLETED: list.filter((r) => r.status === 'COMPLETED').length,
+      CANCELLED: list.filter((r) => r.status === 'CANCELLED').length,
     };
   }, [list]);
 
@@ -411,6 +412,7 @@ export default function Donations() {
       REQ_ACCEPTED: boxes.filter((r) => r.status === 'REQ_ACCEPTED').length,
       EXPECTED_DELIVERY: boxes.filter((r) => r.status === 'EXPECTED_DELIVERY').length,
       COMPLETED: boxes.filter((r) => r.status === 'COMPLETED').length,
+      CANCELLED: boxes.filter((r) => r.status === 'CANCELLED').length,
     };
   }, [boxes]);
 
@@ -449,13 +451,18 @@ export default function Donations() {
 
   const submitPickup = (e: React.FormEvent) => {
     e.preventDefault();
+    const addr = pickupAddress.trim();
+    if (!addr) {
+      toast({ title: 'Pickup address required', description: 'Enter where we should collect the items.', variant: 'destructive' });
+      return;
+    }
     createPickupMutation.mutate(
       {
         wardrobeItemId: wardrobeItemId,
         donationCenterCode: centerCode,
         productSummary: productSummary || undefined,
         size: size || undefined,
-        pickupAddress: pickupAddress || undefined,
+        pickupAddress: addr,
         notes: notes || undefined,
       },
       {
@@ -568,7 +575,7 @@ export default function Donations() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
               <StatChip label="Total" value={pickupCounts.total} />
               <StatChip label="Pending" value={pickupCounts.PENDING} className="border-amber-500/25 bg-amber-500/[0.06]" />
               <StatChip label="Accepted" value={pickupCounts.REQ_ACCEPTED} className="border-sky-500/25 bg-sky-500/[0.06]" />
@@ -578,6 +585,11 @@ export default function Donations() {
                 className="border-violet-500/25 bg-violet-500/[0.06]"
               />
               <StatChip label="Done" value={pickupCounts.COMPLETED} className="border-emerald-500/25 bg-emerald-500/[0.06]" />
+              <StatChip
+                label="Rejected"
+                value={pickupCounts.CANCELLED}
+                className="border-red-500/25 bg-red-500/[0.06]"
+              />
             </div>
 
             <Card className="border-border/80 shadow-sm">
@@ -621,11 +633,12 @@ export default function Donations() {
                       <Input value={size} onChange={(e) => setSize(e.target.value)} placeholder="M / L / 32" />
                     </div>
                     <div className="space-y-2">
-                      <Label>Pickup address (optional)</Label>
+                      <Label>Pickup address</Label>
                       <Input
                         value={pickupAddress}
                         onChange={(e) => setPickupAddress(e.target.value)}
-                        placeholder="Area / pincode hint"
+                        required
+                        placeholder="Full pickup location or area & pincode"
                       />
                     </div>
                   </div>
@@ -665,7 +678,7 @@ export default function Donations() {
                       <SelectItem value="REQ_ACCEPTED">Accepted</SelectItem>
                       <SelectItem value="EXPECTED_PICK_DATE">Scheduled</SelectItem>
                       <SelectItem value="COMPLETED">Completed</SelectItem>
-                      <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                      <SelectItem value="CANCELLED">Rejected</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -710,7 +723,7 @@ export default function Donations() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
               <StatChip label="Total" value={boxCounts.total} />
               <StatChip label="Pending" value={boxCounts.PENDING} className="border-amber-500/25 bg-amber-500/[0.06]" />
               <StatChip label="Approved" value={boxCounts.REQ_ACCEPTED} className="border-sky-500/25 bg-sky-500/[0.06]" />
@@ -720,6 +733,11 @@ export default function Donations() {
                 className="border-violet-500/25 bg-violet-500/[0.06]"
               />
               <StatChip label="Delivered" value={boxCounts.COMPLETED} className="border-emerald-500/25 bg-emerald-500/[0.06]" />
+              <StatChip
+                label="Rejected"
+                value={boxCounts.CANCELLED}
+                className="border-red-500/25 bg-red-500/[0.06]"
+              />
             </div>
 
             {highlight && (
@@ -835,7 +853,7 @@ export default function Donations() {
                       <SelectItem value="REQ_ACCEPTED">Approved</SelectItem>
                       <SelectItem value="EXPECTED_DELIVERY">Scheduled</SelectItem>
                       <SelectItem value="COMPLETED">Delivered</SelectItem>
-                      <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                      <SelectItem value="CANCELLED">Rejected</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

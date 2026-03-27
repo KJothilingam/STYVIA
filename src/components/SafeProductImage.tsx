@@ -1,6 +1,7 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { ImageOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { normalizeProductImageUrl } from '@/lib/productAdapter';
 
 function isLoadableUrl(s: string): boolean {
   const t = s.trim();
@@ -34,43 +35,45 @@ export default function SafeProductImage({
   className,
   classNameImg,
   preferIndex = 0,
+  loading = 'eager',
 }: SafeProductImageProps) {
-  const cleanUrls = useMemo(() => {
+  const urlKey = useMemo(() => {
     const seen = new Set<string>();
-    const out: string[] = [];
+    const parts: string[] = [];
     for (const raw of urls) {
       if (raw == null) continue;
-      const s = String(raw).trim();
-      if (!isLoadableUrl(s) || seen.has(s)) continue;
-      seen.add(s);
-      out.push(s);
+      const normalized = normalizeProductImageUrl(String(raw).trim());
+      if (!normalized || !isLoadableUrl(normalized) || seen.has(normalized)) continue;
+      seen.add(normalized);
+      parts.push(normalized);
     }
-    return out;
+    return parts.join('\0');
   }, [urls]);
 
-  const urlKey = cleanUrls.join('\0');
+  const cleanUrls = useMemo(() => (urlKey ? urlKey.split('\0') : []), [urlKey]);
 
   const [tryIndex, setTryIndex] = useState(0);
   const [failed, setFailed] = useState(() => cleanUrls.length === 0);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    const start = cleanUrls.length === 0 ? 0 : Math.min(Math.max(0, preferIndex), cleanUrls.length - 1);
+    const len = cleanUrls.length;
+    const start = len === 0 ? 0 : Math.min(Math.max(0, preferIndex), len - 1);
     setTryIndex(start);
-    setFailed(cleanUrls.length === 0);
+    setFailed(len === 0);
     setLoaded(false);
   }, [urlKey, preferIndex, cleanUrls.length]);
 
   const src = cleanUrls[tryIndex];
 
-  const handleError = () => {
+  const handleError = useCallback(() => {
     setLoaded(false);
-    if (tryIndex < cleanUrls.length - 1) {
-      setTryIndex((i) => i + 1);
-    } else {
+    setTryIndex((i) => {
+      if (i < cleanUrls.length - 1) return i + 1;
       setFailed(true);
-    }
-  };
+      return i;
+    });
+  }, [cleanUrls.length]);
 
   if (failed || !src) {
     return (
@@ -91,16 +94,17 @@ export default function SafeProductImage({
     <div className={cn('relative h-full w-full overflow-hidden', className)}>
       {!loaded && <div className="absolute inset-0 animate-pulse bg-muted/90" aria-hidden />}
       <img
-        key={`${tryIndex}-${src}`}
+        key={`${urlKey}-${tryIndex}-${src}`}
         src={src}
         alt={alt}
-        loading="lazy"
+        loading={loading}
         decoding="async"
         onError={handleError}
         onLoad={() => setLoaded(true)}
         className={cn(
           'h-full w-full object-cover transition-opacity duration-200',
-          loaded ? 'opacity-100' : 'opacity-0',
+          /** invisible until loaded so browsers never flash the native broken-image icon */
+          loaded ? 'opacity-100' : 'opacity-0 invisible',
           classNameImg,
         )}
       />

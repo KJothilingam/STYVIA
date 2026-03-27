@@ -3,6 +3,8 @@ import api from './api';
 export interface AssistantChatResult {
   reply: string;
   source: string;
+  navigateTo?: string | null;
+  intent?: string | null;
 }
 
 const assistantService = {

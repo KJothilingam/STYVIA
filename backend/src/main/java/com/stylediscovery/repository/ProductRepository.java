@@ -5,6 +5,7 @@ import com.stylediscovery.enums.Gender;
 import com.stylediscovery.enums.ProductStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -18,12 +19,16 @@ import java.util.Optional;
 public interface ProductRepository extends JpaRepository<Product, Long> {
     Optional<Product> findBySlug(String slug);
     
+    @EntityGraph(attributePaths = { "images", "categories" })
     Page<Product> findByStatus(ProductStatus status, Pageable pageable);
-    
+
+    @EntityGraph(attributePaths = { "images", "categories" })
     Page<Product> findByGenderAndStatus(Gender gender, ProductStatus status, Pageable pageable);
-    
+
+    @EntityGraph(attributePaths = { "images", "categories" })
     Page<Product> findByBrandAndStatus(String brand, ProductStatus status, Pageable pageable);
-    
+
+    @EntityGraph(attributePaths = { "images", "categories" })
     @Query("SELECT p FROM Product p WHERE p.status = :status " +
            "AND (:gender IS NULL OR p.gender = :gender) " +
            "AND (:brand IS NULL OR p.brand = :brand) " +
@@ -41,6 +46,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     @Query("SELECT DISTINCT p.brand FROM Product p WHERE p.status = 'ACTIVE' ORDER BY p.brand")
     List<String> findAllActiveBrands();
     
+    @EntityGraph(attributePaths = { "images", "categories" })
     @Query("SELECT p FROM Product p WHERE p.status = 'ACTIVE' " +
            "AND (LOWER(p.name) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
            "OR LOWER(p.brand) LIKE LOWER(CONCAT('%', :keyword, '%')))")

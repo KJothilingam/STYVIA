@@ -331,7 +331,7 @@ const ProductDetail = () => {
       toast({ title: 'Please select a size', variant: 'destructive' });
       return;
     }
-    const color = selectedColor || product.colors[0]?.name || '';
+    const color = (selectedColor || product.colors[0]?.name || 'Default').trim();
     addToCart(product, selectedSize, color);
     toast({ title: 'Added to bag!', description: `${product.name} has been added to your bag.` });
   };

@@ -21,7 +21,7 @@ const LIFECYCLE_LABELS: Record<LifecycleState, string> = {
   NEW: 'New',
   FREQUENTLY_USED: 'Frequently used',
   RARELY_USED: 'Rarely used',
-  REPAIR_NEEDED: 'Needs repair',
+  REPAIR_NEEDED: 'Needs wash',
   DONATE_RECOMMENDED: 'Donate suggested',
   DONATED: 'Donated',
 };
@@ -126,14 +126,14 @@ const Wardrobe = () => {
     if (item.localOnly && uid) {
       localWardrobeService.logRepair(uid, item.id);
       load();
-      toast({ title: 'Marked as needs repair.' });
+      toast({ title: 'Marked as needs wash.' });
       return;
     }
     wardrobeService
       .logRepair(item.id)
       .then(() => {
         load();
-        toast({ title: 'Marked as needs repair.' });
+        toast({ title: 'Marked as needs wash.' });
       })
       .catch(() => toast({ title: 'Failed', variant: 'destructive' }));
   };
@@ -322,8 +322,8 @@ const Wardrobe = () => {
                         </div>
                       </div>
                     </div>
-                    <div className="px-3 py-2.5 flex items-center justify-between bg-card/95 backdrop-blur-sm border-t border-border/30">
-                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium truncate pr-2">
+                    <div className="px-3 py-2.5 flex items-center justify-between bg-card/95 backdrop-blur-sm border-t border-border/30 transition-colors duration-300 group-hover:bg-[hsl(262_58%_22%/0.08)] group-hover:border-[hsl(var(--intelligence-mid)/0.2)]">
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium truncate pr-2 group-hover:text-foreground/90">
                         {item.size} · {item.color}
                       </span>
                     </div>
@@ -385,7 +385,7 @@ const Wardrobe = () => {
                   </Button>
                   <Button size="sm" variant="outline" className="rounded-full" onClick={() => handleRepair(activeItem)}>
                     <Wrench className="w-3.5 h-3.5 mr-1.5" />
-                    Needs repair
+                    Needs wash
                   </Button>
                   <Button size="sm" variant="outline" className="rounded-full" onClick={() => handleDonate(activeItem)}>
                     <Gift className="w-3.5 h-3.5 mr-1.5" />

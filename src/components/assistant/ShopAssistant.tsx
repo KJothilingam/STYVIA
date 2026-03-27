@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { MessageCircle, Send, Sparkles, Wand2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -20,6 +20,7 @@ type Msg = { role: 'user' | 'assistant'; text: string; source?: string };
 export function ShopAssistant() {
   const { isLoggedIn } = useStore();
   const location = useLocation();
+  const navigate = useNavigate();
   const onAuthPage = location.pathname === LOGIN_PATH;
   const visible = isLoggedIn && !onAuthPage;
 
@@ -59,6 +60,9 @@ export function ShopAssistant() {
     try {
       const r = await assistantService.chat(t);
       setMessages((m) => [...m, { role: 'assistant', text: r.reply, source: r.source }]);
+      if (r.navigateTo?.trim()) {
+        navigate(r.navigateTo.trim());
+      }
     } catch {
       setMessages((m) => [
         ...m,

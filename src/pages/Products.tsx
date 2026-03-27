@@ -23,7 +23,19 @@ import {
 import { products as mockProducts } from '@/data/products';
 import { categories } from '@/data/categories';
 import productService from '@/services/productService';
+import { withLocalListingImages } from '@/lib/localListingImages';
 import type { Product } from '@/types';
+
+function productMatchesSearchQuery(product: Product, rawQuery: string): boolean {
+  const tokens = rawQuery
+    .toLowerCase()
+    .trim()
+    .split(/\s+/)
+    .filter((t) => t.length > 0);
+  if (tokens.length === 0) return true;
+  const hay = `${product.name} ${product.brand} ${product.category} ${product.subcategory ?? ''} ${product.description ?? ''}`.toLowerCase();
+  return tokens.every((t) => hay.includes(t));
+}
 
 const sortOptions = [
   { value: 'popular', label: 'Popularity' },
@@ -59,7 +71,26 @@ const Products = () => {
       try {
         let content: Product[] = [];
         const q = search?.trim();
-        if (q) {
+        const genderCategory =
+          category === 'men' || category === 'women' || category === 'kids' || category === 'accessories';
+
+        if (q && genderCategory) {
+          if (category === 'men') {
+            const page = await productService.getProductsByGender('MEN', 0, 100);
+            content = (page.content ?? []).filter((p) => productMatchesSearchQuery(p, q));
+          } else if (category === 'women') {
+            const page = await productService.getProductsByGender('WOMEN', 0, 100);
+            content = (page.content ?? []).filter((p) => productMatchesSearchQuery(p, q));
+          } else if (category === 'kids') {
+            const page = await productService.getProductsByGender('KIDS', 0, 100);
+            content = (page.content ?? []).filter((p) => productMatchesSearchQuery(p, q));
+          } else if (category === 'accessories') {
+            const page = await productService.getAllProducts({ page: 0, size: 300 });
+            content = (page.content ?? [])
+              .filter((p) => p.category === 'accessories')
+              .filter((p) => productMatchesSearchQuery(p, q));
+          }
+        } else if (q) {
           const page = await productService.searchProducts(q, 0, 100);
           content = page.content ?? [];
         } else if (category === 'men') {
@@ -77,6 +108,11 @@ const Products = () => {
         } else {
           const page = await productService.getAllProducts({ page: 0, size: 200 });
           content = page.content ?? [];
+        }
+        if (!cancelled && (category === 'kids' || category === 'accessories') && content.length === 0) {
+          let mock = mockProducts.filter((p) => p.category === category);
+          if (q) mock = mock.filter((p) => productMatchesSearchQuery(p, q));
+          content = mock;
         }
         if (!cancelled) setCatalogItems(content);
       } catch {
@@ -491,7 +527,7 @@ const Products = () => {
                   }`}
               >
                 {filteredProducts.map((product) => (
-                  <ProductCard key={product.id} product={product} />
+                  <ProductCard key={product.id} product={withLocalListingImages(product)} />
                 ))}
               </div>
             ) : (

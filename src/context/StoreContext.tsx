@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { CartItem, WishlistItem, Product, User, Address, Order } from '@/types';
 import authService from '@/services/authService';
@@ -62,6 +62,8 @@ interface StoreContextType {
   removeFromCart: (productId: string, size: string) => void;
   updateCartQuantity: (productId: string, size: string, quantity: number) => void;
   clearCart: () => void;
+  /** Push cart rows that only exist in the browser to the API so checkout can place an order. */
+  syncCartToServer: () => Promise<boolean>;
   cartTotal: number;
   cartItemsCount: number;
   isLoadingCart: boolean;
@@ -125,6 +127,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isLoadingWishlist, setIsLoadingWishlist] = useState(false);
   const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
+
+  const cartRef = useRef(cart);
+  cartRef.current = cart;
 
   useEffect(() => {
     initSessionCrossTabSync();
@@ -427,6 +432,32 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [loadCartFromApi]);
 
+  const syncCartToServer = useCallback(async (): Promise<boolean> => {
+    if (!authService.isAuthenticated()) return false;
+    const pending = cartRef.current.filter((i) => !i.cartItemId);
+    if (pending.length === 0) return true;
+    const invalid = pending.filter(
+      (i) => !Number.isFinite(Number(i.product.id)) || Number(i.product.id) <= 0
+    );
+    if (invalid.length > 0) {
+      return false;
+    }
+    try {
+      for (const item of pending) {
+        await cartService.addToCart({
+          productId: Number(item.product.id),
+          size: (item.size || '').trim(),
+          color: (item.color || 'Default').trim(),
+          quantity: item.quantity,
+        });
+      }
+      await loadCartFromApi();
+      return true;
+    } catch {
+      return false;
+    }
+  }, [loadCartFromApi]);
+
   const removeFromCart = useCallback((productId: string, size: string) => {
     setCart((prev) => {
       const item = prev.find((i) => i.product.id === productId && i.size === size);
@@ -573,6 +604,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         removeFromCart,
         updateCartQuantity,
         clearCart,
+        syncCartToServer,
         cartTotal,
         cartItemsCount,
         isLoadingCart,

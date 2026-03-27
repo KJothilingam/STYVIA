@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import HeroCarousel from '@/components/HeroCarousel';
 import CategoryCard from '@/components/CategoryCard';
@@ -7,7 +7,27 @@ import ProductCard from '@/components/ProductCard';
 import { heroBanners, categories, dealBanners, brands } from '@/data/categories';
 import { getTrendingProducts, getDealsOfTheDay } from '@/data/products';
 import productService from '@/services/productService';
+import { withLocalListingImages } from '@/lib/localListingImages';
 import type { Product } from '@/types';
+
+/** Prefer API rows that actually have images; pad with catalog mocks so home doesn’t swap in broken URLs. */
+function mergeProductsWithImages(api: Product[], fallback: Product[], targetCount: number): Product[] {
+  const seen = new Set<string>();
+  const out: Product[] = [];
+  const tryPush = (p: Product) => {
+    if ((p.images?.length ?? 0) === 0 || seen.has(p.id)) return;
+    seen.add(p.id);
+    out.push(p);
+  };
+  for (const p of api) tryPush(p);
+  if (out.length < targetCount) {
+    for (const p of fallback) {
+      tryPush(p);
+      if (out.length >= targetCount) break;
+    }
+  }
+  return out.slice(0, targetCount);
+}
 
 const Index = () => {
   const [catalogPreview, setCatalogPreview] = useState<Product[] | null>(null);
@@ -15,7 +35,7 @@ const Index = () => {
   useEffect(() => {
     let cancelled = false;
     productService
-      .getAllProducts({ page: 0, size: 10 })
+      .getAllProducts({ page: 0, size: 40 })
       .then((page) => {
         if (cancelled || !page.content?.length) return;
         setCatalogPreview(page.content);
@@ -28,12 +48,22 @@ const Index = () => {
     };
   }, []);
 
-  const trendingProducts = catalogPreview ? catalogPreview.slice(0, 5) : getTrendingProducts();
-  const dealsProducts = catalogPreview
-    ? catalogPreview.length > 5
-      ? catalogPreview.slice(5, 10)
-      : catalogPreview.slice(0, 5)
-    : getDealsOfTheDay();
+  const { trendingProducts, dealsProducts } = useMemo(() => {
+    if (!catalogPreview?.length) {
+      return { trendingProducts: getTrendingProducts(), dealsProducts: getDealsOfTheDay() };
+    }
+    const fallback = [...getTrendingProducts(), ...getDealsOfTheDay()];
+    const pool = mergeProductsWithImages(catalogPreview, fallback, 10);
+    const trending = pool.slice(0, 5);
+    const fromPool = pool.slice(5, 10);
+    const deals =
+      fromPool.length > 0
+        ? fromPool
+        : getDealsOfTheDay()
+            .filter((p) => !trending.some((t) => t.id === p.id))
+            .slice(0, 5);
+    return { trendingProducts: trending, dealsProducts: deals };
+  }, [catalogPreview]);
 
   return (
     <Layout>
@@ -79,7 +109,7 @@ const Index = () => {
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
           {trendingProducts.slice(0, 5).map((product) => (
-            <ProductCard key={product.id} product={product} />
+            <ProductCard key={product.id} product={withLocalListingImages(product)} />
           ))}
         </div>
       </section>
@@ -115,7 +145,7 @@ const Index = () => {
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
           {dealsProducts.slice(0, 5).map((product) => (
-            <ProductCard key={product.id} product={product} />
+            <ProductCard key={product.id} product={withLocalListingImages(product)} />
           ))}
         </div>
       </section>

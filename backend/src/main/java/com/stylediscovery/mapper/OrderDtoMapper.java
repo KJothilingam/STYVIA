@@ -7,6 +7,7 @@ import com.stylediscovery.entity.Order;
 import com.stylediscovery.entity.OrderItem;
 import org.springframework.stereotype.Component;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -14,7 +15,11 @@ import java.util.stream.Collectors;
 public class OrderDtoMapper {
 
     public OrderDTO toDto(Order order) {
-        List<OrderItemDTO> itemDTOs = order.getItems().stream()
+        List<OrderItem> lines = order.getItems();
+        if (lines == null) {
+            lines = Collections.emptyList();
+        }
+        List<OrderItemDTO> itemDTOs = lines.stream()
                 .map(this::toItemDto)
                 .collect(Collectors.toList());
 

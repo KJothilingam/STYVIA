@@ -10,6 +10,7 @@ public class CreateDonationPickupRequest {
     private String size;
     @NotBlank
     private String donationCenterCode;
+    @NotBlank
     private String pickupAddress;
     private String notes;
 }
