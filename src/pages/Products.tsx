@@ -27,6 +27,7 @@ import { withLocalListingImages } from '@/lib/localListingImages';
 import CategoryPageHero from '@/components/catalog/CategoryPageHero';
 import type { CatalogCategorySlug } from '@/components/catalog/CategoryPageHero';
 import { cn } from '@/lib/utils';
+import { meaningfulCatalogSearch } from '@/lib/catalogBrowseQuery';
 import type { Product } from '@/types';
 
 function isCatalogCategorySlug(c: string | null): c is CatalogCategorySlug {
@@ -54,6 +55,12 @@ const sortOptions = [
 
 const Products = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+
+  const clearUrlSearch = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('search');
+    setSearchParams(next, { replace: true });
+  };
   const [showFilters, setShowFilters] = useState(false);
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 10000]);
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
@@ -62,6 +69,8 @@ const Products = () => {
   const [gridCols, setGridCols] = useState(4);
   const [catalogItems, setCatalogItems] = useState<Product[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
+  /** True when search had zero hits in this category — we show the full category instead of an empty grid. */
+  const [searchBroadenedToCategory, setSearchBroadenedToCategory] = useState(false);
 
   const category = searchParams.get('category');
   const subcategory = searchParams.get('subcategory');
@@ -69,37 +78,87 @@ const Products = () => {
   const sort = searchParams.get('sort') || 'popular';
   const discount = searchParams.get('discount');
   const brandFromUrl = searchParams.get('brand');
+  const maxPriceUrl = searchParams.get('maxPrice');
+  const minPriceUrl = searchParams.get('minPrice');
   const catalogCategorySlug = isCatalogCategorySlug(category) ? category : null;
+
+  /** Home “Deals” links use ?maxPrice= / ?minPrice= — keep the slider and filters in sync. */
+  useEffect(() => {
+    const max = maxPriceUrl != null && maxPriceUrl !== '' ? Number(maxPriceUrl) : NaN;
+    const min = minPriceUrl != null && minPriceUrl !== '' ? Number(minPriceUrl) : NaN;
+    const hasMax = Number.isFinite(max) && max > 0;
+    const hasMin = Number.isFinite(min) && min >= 0;
+    if (hasMax || hasMin) {
+      const lo = hasMin ? Math.min(10000, Math.max(0, min)) : 0;
+      const hi = hasMax ? Math.min(10000, Math.max(0, max)) : 10000;
+      setPriceRange(lo <= hi ? [lo, hi] : [hi, lo]);
+    } else {
+      setPriceRange([0, 10000]);
+    }
+  }, [maxPriceUrl, minPriceUrl]);
+
+  const catalogSearchQuery = useMemo(() => {
+    const s = search?.trim();
+    if (!s) return undefined;
+    /** Generic words apply only with ?category= — plain ?search= should stay strict. */
+    if (catalogCategorySlug) return meaningfulCatalogSearch(s);
+    return s;
+  }, [search, catalogCategorySlug]);
 
   useEffect(() => {
     let cancelled = false;
+    setSearchBroadenedToCategory(false);
     setCatalogLoading(true);
     setCatalogItems([]);
     (async () => {
       try {
         let content: Product[] = [];
-        const q = search?.trim();
+        const q = catalogSearchQuery;
         const genderCategory =
           category === 'men' || category === 'women' || category === 'kids' || category === 'accessories';
 
+        const minP =
+          minPriceUrl != null && minPriceUrl !== '' ? Number(minPriceUrl) : Number.NaN;
+        const maxP =
+          maxPriceUrl != null && maxPriceUrl !== '' ? Number(maxPriceUrl) : Number.NaN;
+        const hasUrlPriceFilter =
+          (Number.isFinite(maxP) && maxP > 0) || (Number.isFinite(minP) && minP >= 0);
+
         if (q && genderCategory) {
+          const searchInCategory = async (
+            cat: 'men' | 'women' | 'kids' | 'accessories',
+            primary: Product[],
+          ): Promise<Product[]> => {
+            const list = primary.filter((p) => productMatchesSearchQuery(p, q));
+            if (list.length > 0) return list;
+            const sp = await productService.searchProducts(q, 0, 100);
+            return (sp.content ?? []).filter((p) => p.category === cat);
+          };
+
           if (category === 'men') {
             const page = await productService.getProductsByGender('MEN', 0, 100);
-            content = (page.content ?? []).filter((p) => productMatchesSearchQuery(p, q));
+            content = await searchInCategory('men', page.content ?? []);
           } else if (category === 'women') {
             const page = await productService.getProductsByGender('WOMEN', 0, 100);
-            content = (page.content ?? []).filter((p) => productMatchesSearchQuery(p, q));
+            content = await searchInCategory('women', page.content ?? []);
           } else if (category === 'kids') {
             const page = await productService.getProductsByGender('KIDS', 0, 100);
-            content = (page.content ?? []).filter((p) => productMatchesSearchQuery(p, q));
+            content = await searchInCategory('kids', page.content ?? []);
           } else if (category === 'accessories') {
             const page = await productService.getAllProducts({ page: 0, size: 300 });
-            content = (page.content ?? [])
-              .filter((p) => p.category === 'accessories')
-              .filter((p) => productMatchesSearchQuery(p, q));
+            const acc = (page.content ?? []).filter((p) => p.category === 'accessories');
+            content = await searchInCategory('accessories', acc);
           }
         } else if (q) {
           const page = await productService.searchProducts(q, 0, 100);
+          content = page.content ?? [];
+        } else if (hasUrlPriceFilter && !category && !q) {
+          const page = await productService.filterProducts({
+            page: 0,
+            size: 200,
+            minPrice: Number.isFinite(minP) && minP >= 0 ? minP : undefined,
+            maxPrice: Number.isFinite(maxP) && maxP > 0 ? maxP : undefined,
+          });
           content = page.content ?? [];
         } else if (category === 'men') {
           const page = await productService.getProductsByGender('MEN', 0, 100);
@@ -114,7 +173,8 @@ const Products = () => {
           const page = await productService.getAllProducts({ page: 0, size: 300 });
           content = (page.content ?? []).filter((p) => p.category === 'accessories');
         } else {
-          const page = await productService.getAllProducts({ page: 0, size: 200 });
+          const pageSize = discount ? 300 : 200;
+          const page = await productService.getAllProducts({ page: 0, size: pageSize });
           content = page.content ?? [];
         }
         /** Backend or seed data may omit kids/accessories or mark the wrong `category`; never show an empty shelf when mocks exist. */
@@ -135,9 +195,49 @@ const Products = () => {
             content = matching;
           }
         }
-        if (!cancelled) setCatalogItems(content);
+
+        let broadenedSearch = false;
+        if (!cancelled && q && genderCategory && content.length === 0) {
+          broadenedSearch = true;
+          if (category === 'men') {
+            const page = await productService.getProductsByGender('MEN', 0, 100);
+            content = page.content ?? [];
+          } else if (category === 'women') {
+            const page = await productService.getProductsByGender('WOMEN', 0, 100);
+            content = page.content ?? [];
+          } else if (category === 'kids') {
+            const page = await productService.getProductsByGender('KIDS', 0, 100);
+            content = page.content ?? [];
+          } else if (category === 'accessories') {
+            const page = await productService.getAllProducts({ page: 0, size: 300 });
+            content = (page.content ?? []).filter((p) => p.category === 'accessories');
+          }
+          if (
+            category &&
+            (category === 'men' ||
+              category === 'women' ||
+              category === 'kids' ||
+              category === 'accessories')
+          ) {
+            const matching = content.filter((p) => p.category === category);
+            if (matching.length === 0) {
+              const mock = mockProducts.filter((p) => p.category === category);
+              if (mock.length > 0) content = mock;
+            } else {
+              content = matching;
+            }
+          }
+        }
+
+        if (!cancelled) {
+          setSearchBroadenedToCategory(broadenedSearch);
+          setCatalogItems(content);
+        }
       } catch {
-        if (!cancelled) setCatalogItems(mockProducts);
+        if (!cancelled) {
+          setSearchBroadenedToCategory(false);
+          setCatalogItems(mockProducts);
+        }
       } finally {
         if (!cancelled) setCatalogLoading(false);
       }
@@ -145,7 +245,7 @@ const Products = () => {
     return () => {
       cancelled = true;
     };
-  }, [category, search]);
+  }, [category, catalogSearchQuery, discount, maxPriceUrl, minPriceUrl]);
 
   const brandsList = useMemo(
     () => [...new Set(catalogItems.map((p) => p.brand))].sort(),
@@ -157,11 +257,12 @@ const Products = () => {
     [catalogItems],
   );
 
-  const filteredProducts = useMemo(() => {
+  const { filteredProducts, discountRelaxedFromUrl } = useMemo(() => {
     let result = [...catalogItems];
+    let discountRelaxedFromUrl = false;
 
     // Filter by category (accessories / unfiltered API lists)
-    if (category && !search?.trim()) {
+    if (category && !catalogSearchQuery) {
       result = result.filter((p) => p.category === category);
     }
 
@@ -179,20 +280,22 @@ const Products = () => {
       result = result.filter((p) => p.brand === b);
     }
 
-    // Filter by search
-    if (search) {
-      const lowerSearch = search.toLowerCase();
-      result = result.filter(
-        (p) =>
-          p.name.toLowerCase().includes(lowerSearch) ||
-          p.brand.toLowerCase().includes(lowerSearch) ||
-          p.category.toLowerCase().includes(lowerSearch)
-      );
+    // Meaningful search only (generic words like “dress” / “clothes” are aisle-browse, not filters)
+    if (catalogSearchQuery && !searchBroadenedToCategory) {
+      result = result.filter((p) => productMatchesSearchQuery(p, catalogSearchQuery));
     }
 
-    // Filter by discount
+    // Filter by discount (home “Min 50% off”); if catalog has no such SKUs, show all and explain
     if (discount) {
-      result = result.filter((p) => p.discount >= parseInt(discount));
+      const t = parseInt(discount, 10);
+      if (Number.isFinite(t)) {
+        const matched = result.filter((p) => p.discount >= t);
+        if (matched.length > 0) {
+          result = matched;
+        } else {
+          discountRelaxedFromUrl = true;
+        }
+      }
     }
 
     // Filter by price range
@@ -220,29 +323,33 @@ const Products = () => {
     }
 
     // Sort
-    switch (sort) {
-      case 'price-low':
-        result.sort((a, b) => a.price - b.price);
-        break;
-      case 'price-high':
-        result.sort((a, b) => b.price - a.price);
-        break;
-      case 'newest':
-        result.reverse();
-        break;
-      case 'discount':
-        result.sort((a, b) => b.discount - a.discount);
-        break;
-      default:
-        result.sort((a, b) => b.rating - a.rating);
+    if (discountRelaxedFromUrl && discount) {
+      result.sort((a, b) => b.discount - a.discount);
+    } else {
+      switch (sort) {
+        case 'price-low':
+          result.sort((a, b) => a.price - b.price);
+          break;
+        case 'price-high':
+          result.sort((a, b) => b.price - a.price);
+          break;
+        case 'newest':
+          result.reverse();
+          break;
+        case 'discount':
+          result.sort((a, b) => b.discount - a.discount);
+          break;
+        default:
+          result.sort((a, b) => b.rating - a.rating);
+      }
     }
 
-    return result;
+    return { filteredProducts: result, discountRelaxedFromUrl };
   }, [
     catalogItems,
     category,
     subcategory,
-    search,
+    catalogSearchQuery,
     sort,
     discount,
     brandFromUrl,
@@ -250,6 +357,7 @@ const Products = () => {
     selectedBrands,
     selectedSizes,
     selectedColors,
+    searchBroadenedToCategory,
   ]);
 
   const handleSortChange = (value: string) => {
@@ -262,6 +370,11 @@ const Products = () => {
     setSelectedBrands([]);
     setSelectedSizes([]);
     setSelectedColors([]);
+    const next = new URLSearchParams(searchParams);
+    next.delete('maxPrice');
+    next.delete('minPrice');
+    next.delete('discount');
+    setSearchParams(next, { replace: true });
   };
 
   const FilterContent = () => (
@@ -557,6 +670,42 @@ const Products = () => {
                 ))}
               </div>
             )}
+
+            {catalogCategorySlug &&
+              searchBroadenedToCategory &&
+              search?.trim() &&
+              !catalogLoading && (
+                <div
+                  className="mb-4 rounded-xl border border-amber-500/35 bg-amber-500/[0.07] px-4 py-3 text-sm text-foreground"
+                  role="status"
+                >
+                  <p className="mb-3 leading-relaxed">
+                    No products matched <span className="font-semibold">&quot;{search}&quot;</span> in{' '}
+                    <span className="capitalize">{catalogCategorySlug}</span>. Showing the full collection so you
+                    can still browse — your catalog may not list that exact item for this aisle yet.
+                  </p>
+                  <Button type="button" variant="outline" size="sm" onClick={clearUrlSearch}>
+                    Clear search
+                  </Button>
+                </div>
+              )}
+
+            {discount &&
+              discountRelaxedFromUrl &&
+              !catalogLoading && (
+                <div
+                  className="mb-4 rounded-xl border border-amber-500/35 bg-amber-500/[0.07] px-4 py-3 text-sm text-foreground"
+                  role="status"
+                >
+                  <p className="mb-3 leading-relaxed">
+                    Nothing in the catalog is at <span className="font-semibold">{discount}%+ off</span> right now.
+                    Showing all products sorted by <span className="font-semibold">best discount</span> first.
+                  </p>
+                  <Button type="button" variant="outline" size="sm" onClick={clearFilters}>
+                    Clear deal filters
+                  </Button>
+                </div>
+              )}
 
             {/* Product Grid */}
             {catalogLoading ? (

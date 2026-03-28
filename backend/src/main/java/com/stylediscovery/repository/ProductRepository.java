@@ -49,7 +49,8 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     @EntityGraph(attributePaths = { "images", "categories" })
     @Query("SELECT p FROM Product p WHERE p.status = 'ACTIVE' " +
            "AND (LOWER(p.name) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
-           "OR LOWER(p.brand) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+           "OR LOWER(p.brand) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+           "OR LOWER(COALESCE(p.description, '')) LIKE LOWER(CONCAT('%', :keyword, '%')))")
     Page<Product> searchProducts(@Param("keyword") String keyword, Pageable pageable);
 
     /** Admin catalog: optional status filter and optional name/brand keyword (null keyword = no text filter). */

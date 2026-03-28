@@ -5,10 +5,11 @@ import org.springframework.stereotype.Component;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
-import java.util.regex.Matcher;
+import java.util.stream.Collectors;
 import java.util.regex.Pattern;
 
 /**
@@ -52,7 +53,15 @@ public class AssistantIntentResolver {
             "a", "an", "the", "show", "me", "find", "look", "looking", "for", "i", "want", "need", "get", "buy",
             "some", "please", "can", "you", "to", "in", "of", "with", "go", "open", "take", "view", "browse", "shop",
             "section", "category", "stuff", "things", "something", "any", "where", "is", "are", "do", "does", "how",
-            "about", "give", "see", "list", "all", "page", "navigate", "redirect");
+            "about", "give", "see", "list", "all", "page", "navigate", "redirect", "like", "just", "only", "also",
+            "really", "very");
+
+    /** Not product keywords — “men’s dress / clothes” means browse the Men aisle, not text search for “dress”. */
+    private static final Set<String> GENERIC_BROWSE_TERMS = Set.of(
+            "dress", "dresses", "clothe", "clothes", "clothing", "cloths", "vlothes", "wear", "wearing", "outfit",
+            "outfits",
+            "fashion", "styles", "style", "garments", "garment", "collection", "collections", "items", "looks", "look",
+            "apparel");
 
     public Optional<AssistantChatResponse> resolve(String raw) {
         if (raw == null || raw.isBlank()) {
@@ -155,6 +164,7 @@ public class AssistantIntentResolver {
             search.append(tok);
         }
         String q = search.toString().trim();
+        q = stripGenericBrowseTerms(q);
 
         String path = "/products?category=" + category;
         if (!q.isEmpty()) {
@@ -181,5 +191,16 @@ public class AssistantIntentResolver {
                 .intent(intent)
                 .source("rules")
                 .build();
+    }
+
+    /** Drops aisle-browse filler words; keeps real keywords (e.g. nike, floral, party). */
+    private static String stripGenericBrowseTerms(String q) {
+        if (q == null || q.isBlank()) {
+            return "";
+        }
+        return Arrays.stream(q.split("\\s+"))
+                .map(String::trim)
+                .filter(tok -> !tok.isEmpty() && !GENERIC_BROWSE_TERMS.contains(tok))
+                .collect(Collectors.joining(" "));
     }
 }

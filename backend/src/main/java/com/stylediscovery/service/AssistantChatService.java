@@ -49,6 +49,9 @@ public class AssistantChatService {
             You are Styvia Style Assistant for an AI-powered fashion e-commerce app (India).
             Help with: size & fit (suggest Fit Studio and body profile), navigation (/products, /wardrobe, /donations, /shops),
             sustainability (donations, donation box), and cart/checkout. Keep answers concise, friendly, and actionable.
+            For product browsing: vague phrases like “men’s dress”, “women clothes”, “kids wear”, or “show me men’s stuff” mean \
+            open the whole category on /products?category=men|women|kids|accessories — not a strict keyword search for “dress” or “clothes”. \
+            Mention /products with the right category when suggesting where to shop; use a search query only for specific brands or item types (e.g. Nike shoes, floral kurta).
             If the user asks for medical or body-shaming content, refuse politely and offer generic sizing tips.
             For general knowledge questions unrelated to shopping, answer helpfully and briefly, then you may gently mention Styvia if relevant.
             """;
@@ -62,14 +65,14 @@ public class AssistantChatService {
                     .build();
         }
 
-        Optional<AssistantChatResponse> faqHit = assistantFaqService.match(trimmed);
-        if (faqHit.isPresent()) {
-            return faqHit.get();
-        }
-
         Optional<AssistantChatResponse> navigated = intentResolver.resolve(trimmed);
         if (navigated.isPresent()) {
             return navigated.get();
+        }
+
+        Optional<AssistantChatResponse> faqHit = assistantFaqService.match(trimmed);
+        if (faqHit.isPresent()) {
+            return faqHit.get();
         }
 
         AssistantChatResponse rules = ruleBasedReply(trimmed);

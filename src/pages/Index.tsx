@@ -175,8 +175,8 @@ const Index = () => {
             centered
             action={
               <Link
-                to="/products?discount=50"
-                className="home-shine-hover inline-flex items-center gap-2 rounded-full border border-primary/30 bg-background/80 px-5 py-2.5 text-sm font-semibold text-primary shadow-sm backdrop-blur transition hover:border-primary/50 hover:shadow-md"
+                to="/products?sort=discount"
+                className="relative z-10 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-background/80 px-5 py-2.5 text-sm font-semibold text-primary shadow-sm backdrop-blur transition hover:border-primary/50 hover:shadow-md home-shine-hover"
               >
                 <Zap className="h-4 w-4" aria-hidden />
                 View all offers
@@ -207,7 +207,7 @@ const Index = () => {
             action={
               <Link
                 to="/products?sort=popular"
-                className="group inline-flex items-center gap-2 text-sm font-bold text-primary transition hover:gap-3"
+                className="group relative z-10 inline-flex items-center gap-2 text-sm font-bold text-primary transition hover:gap-3"
               >
                 <TrendingUp className="h-4 w-4 transition-transform group-hover:-rotate-12" aria-hidden />
                 View all →
@@ -254,8 +254,8 @@ const Index = () => {
               On 5 lakh+ styles — limited time. Refresh your wardrobe without the guilt.
             </p>
             <Link
-              to="/products?discount=50"
-              className="home-shine-hover mt-8 inline-block rounded-full bg-background px-10 py-3.5 font-bold text-foreground shadow-xl transition hover:scale-[1.02] active:scale-[0.98]"
+              to="/products?sort=discount"
+              className="relative z-10 mt-8 inline-block rounded-full bg-background px-10 py-3.5 font-bold text-foreground shadow-xl transition hover:scale-[1.02] active:scale-[0.98] home-shine-hover"
             >
               Shop the sale
             </Link>
@@ -269,7 +269,10 @@ const Index = () => {
           eyebrow="Today only"
           title="Deals of the day"
           action={
-            <Link to="/products?discount=50" className="text-sm font-bold text-primary transition hover:underline">
+            <Link
+              to="/products?sort=discount"
+              className="relative z-10 text-sm font-bold text-primary transition hover:underline"
+            >
               View all →
             </Link>
           }
