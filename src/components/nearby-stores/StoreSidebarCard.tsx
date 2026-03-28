@@ -40,8 +40,8 @@ export function StoreSidebarCard({
       target="_blank"
       rel="noopener noreferrer"
       className={cn(
-        'group flex gap-3 rounded-xl border bg-card p-3 text-left shadow-sm transition-colors',
-        'hover:bg-muted/50 hover:border-border',
+        'group flex gap-3 rounded-xl border border-border/80 bg-card p-3 text-left shadow-sm transition-all duration-300',
+        'hover:-translate-y-0.5 hover:border-sky-300/45 hover:bg-muted/40 hover:shadow-md dark:hover:border-sky-500/25',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
         selected && 'ring-2 ring-primary border-primary/40 bg-primary/[0.04]',
       )}

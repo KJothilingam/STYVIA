@@ -13,6 +13,8 @@ import CartItemSizeFit from '@/components/cart/CartItemSizeFit';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import orderService from '@/services/orderService';
+import { mapOrderStatusForStore, mapPaymentMethodForStore } from '@/lib/orderStoreMaps';
+import { withLocalListingImages } from '@/lib/localListingImages';
 
 const Checkout = () => {
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
@@ -137,13 +139,16 @@ const Checkout = () => {
       });
       addOrder({
         id: res.orderNumber,
-        items: cart,
-        totalAmount: res.totalAmount,
-        discount: res.discount,
-        deliveryFee: res.deliveryFee,
+        items: cart.map((row) => ({
+          ...row,
+          product: withLocalListingImages(row.product),
+        })),
+        totalAmount: Number(res.totalAmount),
+        discount: Number(res.discount ?? 0),
+        deliveryFee: Number(res.deliveryFee ?? 0),
         address,
-        paymentMethod: paymentMethod as 'cod' | 'card' | 'upi',
-        status: res.orderStatus?.toLowerCase() as 'processing' | 'shipped' | 'delivered' | 'cancelled',
+        paymentMethod: mapPaymentMethodForStore(res.paymentMethod),
+        status: mapOrderStatusForStore(res.orderStatus),
         orderedAt: new Date(res.createdAt),
         deliveredAt: res.deliveredAt ? new Date(res.deliveredAt) : undefined,
       });
@@ -314,12 +319,14 @@ const Checkout = () => {
               <p className="mt-0.5 text-xs text-muted-foreground">{cart.length} {cart.length === 1 ? 'item' : 'items'}</p>
 
               <ul className="mt-5 divide-y divide-border">
-                {cart.map((item) => (
+                {cart.map((item) => {
+                  const p = withLocalListingImages(item.product);
+                  return (
                   <li key={`${item.product.id}-${item.size}`} className="flex gap-3 py-4 first:pt-0">
                     <div className="relative h-20 w-16 shrink-0 overflow-hidden rounded-md">
                       <SafeProductImage
-                        urls={item.product.images ?? []}
-                        alt={item.product.name}
+                        urls={p.images ?? []}
+                        alt={p.name}
                         className="absolute inset-0"
                       />
                     </div>
@@ -339,7 +346,8 @@ const Checkout = () => {
                       <p className="mt-2 text-sm font-semibold tabular-nums">₹{(item.product.price * item.quantity).toLocaleString()}</p>
                     </div>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
 
               <div className="mt-6 space-y-2 border-t border-border pt-6 text-sm">

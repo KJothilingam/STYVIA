@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,9 +8,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useStore } from '@/context/StoreContext';
 import { useToast } from '@/hooks/use-toast';
 import authService from '@/services/authService';
-import { isAxiosError } from 'axios';
+import type { AuthResponse } from '@/services/authService';
 import { ArrowRight, Lock, Mail, Sparkles, User, Phone } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, getApiErrorMessage, getSafeInternalPath } from '@/lib/utils';
+
+function roleList(roles: AuthResponse['roles']): string[] {
+  if (Array.isArray(roles)) return roles.filter((r): r is string => typeof r === 'string');
+  return [];
+}
 
 const Login = () => {
   const [loginEmail, setLoginEmail] = useState('');
@@ -27,6 +32,8 @@ const Login = () => {
   const { toast } = useToast();
   const sessionToastShown = useRef(false);
 
+  const nextPath = getSafeInternalPath(searchParams.get('next'));
+
   useEffect(() => {
     if (searchParams.get('session') !== 'expired' || sessionToastShown.current) return;
     sessionToastShown.current = true;
@@ -42,6 +49,15 @@ const Login = () => {
     next.delete('from');
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams, toast]);
+
+  if (authService.isAuthenticated()) {
+    const saved = authService.getUser();
+    if (saved) {
+      const roles = roleList(saved.roles);
+      const to = roles.includes('ROLE_ADMIN') ? '/admin' : nextPath ?? '/';
+      return <Navigate to={to} replace />;
+    }
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,16 +78,16 @@ const Login = () => {
 
       toast({ title: 'Logged in successfully!' });
 
-      if (authData.roles.includes('ROLE_ADMIN')) {
+      const roles = roleList(authData.roles);
+      if (roles.includes('ROLE_ADMIN')) {
         navigate('/admin');
       } else {
-        navigate('/');
+        navigate(nextPath ?? '/');
       }
     } catch (error: unknown) {
-      const msg = isAxiosError(error) ? (error.response?.data as { message?: string })?.message : undefined;
       toast({
         title: 'Login failed',
-        description: msg || 'Invalid email or password',
+        description: getApiErrorMessage(error, 'Invalid email or password'),
         variant: 'destructive',
       });
     } finally {
@@ -84,27 +100,28 @@ const Login = () => {
     setIsLoading(true);
 
     try {
+      const phoneTrim = signupPhone.trim();
       const authData = await authService.signup({
-        name: signupName,
-        email: signupEmail,
+        name: signupName.trim(),
+        email: signupEmail.trim(),
         password: signupPassword,
-        phone: signupPhone,
+        ...(phoneTrim.length > 0 ? { phone: phoneTrim } : {}),
       });
 
       setUser({
         id: authData.userId.toString(),
         name: authData.name,
         email: authData.email,
-        phone: signupPhone,
+        phone: phoneTrim,
       });
 
       toast({ title: 'Account created successfully!' });
-      navigate('/');
+      const roles = roleList(authData.roles);
+      navigate(roles.includes('ROLE_ADMIN') ? '/admin' : nextPath ?? '/');
     } catch (error: unknown) {
-      const msg = isAxiosError(error) ? (error.response?.data as { message?: string })?.message : undefined;
       toast({
         title: 'Signup failed',
-        description: msg || 'Could not create account',
+        description: getApiErrorMessage(error, 'Could not create account'),
         variant: 'destructive',
       });
     } finally {
@@ -238,6 +255,12 @@ const Login = () => {
                         <button
                           type="button"
                           className="text-sm font-medium text-primary hover:underline underline-offset-4"
+                          onClick={() =>
+                            toast({
+                              title: 'Password reset',
+                              description: 'Self‑serve reset is not wired up in this demo. Use a known test account or sign up again.',
+                            })
+                          }
                         >
                           Forgot password?
                         </button>
@@ -292,17 +315,16 @@ const Login = () => {
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="signup-phone" className="text-sm font-medium">
-                          Phone
+                          Phone <span className="font-normal text-muted-foreground">(optional)</span>
                         </Label>
                         <div className="relative">
                           <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                           <Input
                             id="signup-phone"
                             type="tel"
-                            placeholder="+91 …"
+                            placeholder="10–20 digits if you add one"
                             value={signupPhone}
                             onChange={(e) => setSignupPhone(e.target.value)}
-                            required
                             className="h-11 rounded-xl border-border/80 pl-10"
                             autoComplete="tel"
                           />
@@ -317,7 +339,7 @@ const Login = () => {
                           <Input
                             id="signup-password"
                             type="password"
-                            placeholder="Min. 8 characters"
+                            placeholder="At least 6 characters"
                             value={signupPassword}
                             onChange={(e) => setSignupPassword(e.target.value)}
                             required

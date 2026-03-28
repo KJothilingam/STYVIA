@@ -5,6 +5,9 @@ import { useStore } from '@/context/StoreContext';
 import { cn } from '@/lib/utils';
 import SafeProductImage from '@/components/SafeProductImage';
 
+/** Stable reference — avoids `?? []` creating a new array every render and confusing image state. */
+const NO_PRODUCT_IMAGES: string[] = [];
+
 interface ProductCardProps {
   product: Product;
   className?: string;
@@ -13,6 +16,7 @@ interface ProductCardProps {
 const ProductCard = ({ product, className }: ProductCardProps) => {
   const { addToWishlist, removeFromWishlist, isInWishlist } = useStore();
   const inWishlist = isInWishlist(product.id);
+  const imageUrls = product.images ?? NO_PRODUCT_IMAGES;
 
   const handleWishlistToggle = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -35,7 +39,7 @@ const ProductCard = ({ product, className }: ProductCardProps) => {
       {/* Image Container */}
       <div className="relative aspect-[3/4] overflow-hidden bg-secondary">
         <SafeProductImage
-          urls={product.images ?? []}
+          urls={imageUrls}
           alt={product.name}
           className="absolute inset-0"
           classNameImg="transition-transform duration-300 group-hover:scale-105"

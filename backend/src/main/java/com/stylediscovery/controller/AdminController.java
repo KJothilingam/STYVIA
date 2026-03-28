@@ -3,10 +3,14 @@ package com.stylediscovery.controller;
 import com.stylediscovery.dto.ApiResponse;
 import com.stylediscovery.dto.OrderDTO;
 import com.stylediscovery.enums.OrderStatus;
+import com.stylediscovery.enums.PaymentMethod;
+import com.stylediscovery.enums.PaymentStatus;
 import com.stylediscovery.repository.OrderRepository;
+import com.stylediscovery.repository.PaymentRepository;
 import com.stylediscovery.repository.ProductRepository;
 import com.stylediscovery.repository.UserRepository;
 import com.stylediscovery.exception.BadRequestException;
+import com.stylediscovery.exception.ResourceNotFoundException;
 import com.stylediscovery.service.DonationService;
 import com.stylediscovery.service.MlTrainingOrchestratorService;
 import com.stylediscovery.service.OrderService;
@@ -29,6 +33,7 @@ import java.util.Map;
 public class AdminController {
 
     private final OrderRepository orderRepository;
+    private final PaymentRepository paymentRepository;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
     private final OrderService orderService;
@@ -114,16 +119,23 @@ public class AdminController {
             @RequestParam OrderStatus status) {
         
         var order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new RuntimeException("Order not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
         
         order.setOrderStatus(status);
-        
+
         if (status == OrderStatus.DELIVERED) {
             order.setDeliveredAt(java.time.LocalDateTime.now());
+            if (order.getPaymentMethod() == PaymentMethod.COD && order.getPaymentStatus() != PaymentStatus.SUCCESS) {
+                order.setPaymentStatus(PaymentStatus.SUCCESS);
+                paymentRepository.findByOrder_Id(orderId).ifPresent(p -> {
+                    p.setStatus(PaymentStatus.SUCCESS);
+                    paymentRepository.save(p);
+                });
+            }
         } else if (status == OrderStatus.CANCELLED) {
             order.setCancelledAt(java.time.LocalDateTime.now());
         }
-        
+
         orderRepository.save(order);
         
         OrderDTO orderDTO = orderService.getOrderById(order.getUser().getId(), orderId);

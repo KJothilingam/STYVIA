@@ -24,7 +24,14 @@ import { products as mockProducts } from '@/data/products';
 import { categories } from '@/data/categories';
 import productService from '@/services/productService';
 import { withLocalListingImages } from '@/lib/localListingImages';
+import CategoryPageHero from '@/components/catalog/CategoryPageHero';
+import type { CatalogCategorySlug } from '@/components/catalog/CategoryPageHero';
+import { cn } from '@/lib/utils';
 import type { Product } from '@/types';
+
+function isCatalogCategorySlug(c: string | null): c is CatalogCategorySlug {
+  return c === 'men' || c === 'women' || c === 'kids' || c === 'accessories';
+}
 
 function productMatchesSearchQuery(product: Product, rawQuery: string): boolean {
   const tokens = rawQuery
@@ -62,6 +69,7 @@ const Products = () => {
   const sort = searchParams.get('sort') || 'popular';
   const discount = searchParams.get('discount');
   const brandFromUrl = searchParams.get('brand');
+  const catalogCategorySlug = isCatalogCategorySlug(category) ? category : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -109,10 +117,23 @@ const Products = () => {
           const page = await productService.getAllProducts({ page: 0, size: 200 });
           content = page.content ?? [];
         }
-        if (!cancelled && (category === 'kids' || category === 'accessories') && content.length === 0) {
-          let mock = mockProducts.filter((p) => p.category === category);
-          if (q) mock = mock.filter((p) => productMatchesSearchQuery(p, q));
-          content = mock;
+        /** Backend or seed data may omit kids/accessories or mark the wrong `category`; never show an empty shelf when mocks exist. */
+        if (
+          !cancelled &&
+          category &&
+          (category === 'men' ||
+            category === 'women' ||
+            category === 'kids' ||
+            category === 'accessories')
+        ) {
+          const matching = content.filter((p) => p.category === category);
+          if (matching.length === 0) {
+            let mock = mockProducts.filter((p) => p.category === category);
+            if (q) mock = mock.filter((p) => productMatchesSearchQuery(p, q));
+            if (mock.length > 0) content = mock;
+          } else {
+            content = matching;
+          }
         }
         if (!cancelled) setCatalogItems(content);
       } catch {
@@ -368,49 +389,73 @@ const Products = () => {
 
   return (
     <Layout>
-      <div className="container mx-auto px-4 py-6">
-        {/* Breadcrumb */}
-        <nav className="text-sm text-muted-foreground mb-6">
-          <Link to="/" className="hover:text-primary">Home</Link>
-          <span className="mx-2">/</span>
-          <span className="text-foreground capitalize">
-            {category || 'All Products'}
-            {subcategory && ` / ${subcategory}`}
-          </span>
-        </nav>
+      <div
+        className={cn(
+          'min-h-[50vh]',
+          catalogCategorySlug === 'men' && 'bg-gradient-to-b from-sky-950/[0.06] via-background to-background',
+          catalogCategorySlug === 'women' && 'bg-gradient-to-b from-rose-950/[0.07] via-background to-background',
+          catalogCategorySlug === 'kids' && 'bg-gradient-to-b from-amber-950/[0.06] via-background to-background',
+          catalogCategorySlug === 'accessories' && 'bg-gradient-to-b from-amber-950/[0.05] via-background to-background',
+        )}
+      >
+        <div className="container mx-auto px-4 py-6 md:py-8">
+          {/* Breadcrumb */}
+          <nav className="mb-4 text-sm text-muted-foreground md:mb-5">
+            <Link to="/" className="transition hover:text-primary">
+              Home
+            </Link>
+            <span className="mx-2 opacity-50">/</span>
+            <span className="capitalize text-foreground">
+              {category || 'All Products'}
+              {subcategory && ` / ${subcategory}`}
+            </span>
+          </nav>
 
-        {/* Page Title */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold capitalize">
-              {search
-                ? `Search results for "${search}"`
-                : category
-                  ? `${category}'s Fashion`
-                  : 'All Products'}
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              {catalogLoading ? 'Loading catalog…' : `${filteredProducts.length} items found`}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex gap-8">
-          {/* Desktop Filters Sidebar */}
-          <aside className="hidden lg:block w-64 flex-shrink-0">
-            <div className="sticky top-24">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="font-bold text-lg">Filters</h2>
-                <Filter className="w-4 h-4" />
+          {catalogCategorySlug ? (
+            <CategoryPageHero
+              category={catalogCategorySlug}
+              itemCount={filteredProducts.length}
+              loading={catalogLoading}
+            />
+          ) : (
+            <div className="mb-8 flex flex-col gap-1 border-b border-border/60 pb-6 md:flex-row md:items-end md:justify-between">
+              <div>
+                <h1 className="font-sans text-3xl font-bold tracking-tight capitalize md:text-4xl">
+                  <span className="text-gradient-styvia bg-[length:200%_auto]">
+                    {search
+                      ? `Search: "${search}"`
+                      : category
+                        ? `${category}'s fashion`
+                        : 'All products'}
+                  </span>
+                </h1>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {catalogLoading ? 'Loading catalog…' : `${filteredProducts.length} items found`}
+                </p>
               </div>
-              <FilterContent />
+            </div>
+          )}
+
+          <div className="flex gap-6 lg:gap-10">
+          {/* Desktop Filters Sidebar */}
+          <aside className="hidden w-64 shrink-0 lg:block">
+            <div className="sticky top-24">
+              <div className="rounded-2xl border border-border/70 bg-card/60 p-5 shadow-sm backdrop-blur-md">
+                <div className="mb-6 flex items-center justify-between">
+                  <h2 className="text-lg font-bold tracking-tight">Filters</h2>
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <Filter className="h-4 w-4" />
+                  </div>
+                </div>
+                <FilterContent />
+              </div>
             </div>
           </aside>
 
           {/* Main Content */}
           <div className="flex-1">
             {/* Sort & Filter Bar */}
-            <div className="flex items-center justify-between mb-6 pb-4 border-b">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/60 bg-card/40 px-3 py-3 backdrop-blur-sm md:px-4">
               {/* Mobile Filter Button */}
               <Sheet open={showFilters} onOpenChange={setShowFilters}>
                 <SheetTrigger asChild>
@@ -521,13 +566,19 @@ const Products = () => {
               </div>
             ) : filteredProducts.length > 0 ? (
               <div
-                className={`grid gap-4 grid-cols-2 ${gridCols === 3
+                className={`grid grid-cols-2 gap-4 md:gap-5 ${gridCols === 3
                     ? 'md:grid-cols-3'
                     : 'md:grid-cols-3 lg:grid-cols-4'
                   }`}
               >
-                {filteredProducts.map((product) => (
-                  <ProductCard key={product.id} product={withLocalListingImages(product)} />
+                {filteredProducts.map((product, i) => (
+                  <div
+                    key={product.id}
+                    className="animate-home-reveal-up"
+                    style={{ animationDelay: `${Math.min(i, 16) * 40}ms` }}
+                  >
+                    <ProductCard product={withLocalListingImages(product)} />
+                  </div>
                 ))}
               </div>
             ) : (
@@ -542,6 +593,7 @@ const Products = () => {
               </div>
             )}
           </div>
+        </div>
         </div>
       </div>
     </Layout>

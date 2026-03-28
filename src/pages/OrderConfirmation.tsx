@@ -1,6 +1,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { CheckCircle, Package, Truck, Home } from 'lucide-react';
 import SafeProductImage from '@/components/SafeProductImage';
+import { withLocalListingImages } from '@/lib/localListingImages';
 import Layout from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/context/StoreContext';
@@ -82,15 +83,17 @@ const OrderConfirmation = () => {
 
             {/* Items */}
             <div className="space-y-3 pb-4 border-b">
-              {order.items.map((item) => (
+              {order.items.map((item) => {
+                const p = withLocalListingImages(item.product);
+                return (
                 <div
                   key={`${item.product.id}-${item.size}`}
                   className="flex gap-3"
                 >
                   <div className="relative h-20 w-16 shrink-0 overflow-hidden rounded">
                     <SafeProductImage
-                      urls={item.product.images ?? []}
-                      alt={item.product.name}
+                      urls={p.images ?? []}
+                      alt={p.name}
                       className="absolute inset-0"
                     />
                   </div>
@@ -107,7 +110,8 @@ const OrderConfirmation = () => {
                     </p>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Delivery Address */}

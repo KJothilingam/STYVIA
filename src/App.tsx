@@ -12,6 +12,7 @@ import ProductDetail from "./pages/ProductDetail";
 import Cart from "./pages/Cart";
 import Wishlist from "./pages/Wishlist";
 import Login from "./pages/Login";
+import LegalInfo from "./pages/LegalInfo";
 import Profile from "./pages/Profile";
 import BodyProfile from "./pages/BodyProfile";
 import Checkout from "./pages/Checkout";
@@ -30,6 +31,7 @@ import DonationBox from "./pages/DonationBox";
 import NearbyStores from "./pages/NearbyStores";
 import DonationDropVerify from "./pages/DonationDropVerify";
 import { ShopAssistant } from "@/components/assistant/ShopAssistant";
+import AuthNavigationRegistrar from "@/components/AuthNavigationRegistrar";
 
 const queryClient = new QueryClient();
 
@@ -40,6 +42,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          <AuthNavigationRegistrar />
           <ShopAssistant />
           <Routes>
             {/* Public Routes */}
@@ -47,6 +50,8 @@ const App = () => (
             <Route path="/products" element={<Products />} />
             <Route path="/product/:id" element={<ProductDetail />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/terms" element={<LegalInfo variant="terms" />} />
+            <Route path="/privacy" element={<LegalInfo variant="privacy" />} />
             <Route path="/donation-drop/:token" element={<DonationDropVerify />} />
 
             {/* Protected Routes */}

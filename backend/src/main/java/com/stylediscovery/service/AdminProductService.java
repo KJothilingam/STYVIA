@@ -10,6 +10,7 @@ import com.stylediscovery.enums.Gender;
 import com.stylediscovery.enums.ProductStatus;
 import com.stylediscovery.enums.StretchLevel;
 import com.stylediscovery.exception.ResourceNotFoundException;
+import com.stylediscovery.mapper.ProductDtoMapper;
 import com.stylediscovery.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -32,6 +33,7 @@ import java.util.stream.Collectors;
 public class AdminProductService {
 
     private final ProductRepository productRepository;
+    private final ProductDtoMapper productDtoMapper;
     private final CategoryRepository categoryRepository;
     private final ProductImageRepository productImageRepository;
     private final InventoryRepository inventoryRepository;
@@ -42,8 +44,8 @@ public class AdminProductService {
     @Transactional(readOnly = true)
     public Page<ProductDTO> list(ProductStatus status, String keyword, Pageable pageable) {
         String kw = (keyword != null && !keyword.isBlank()) ? keyword.trim() : null;
-        return productRepository.findForAdmin(status, kw, pageable)
-                .map(p -> productService.getProductById(p.getId()));
+        // Map entities directly so admin list is not served from @Cacheable getProductById (stale/partial DTOs).
+        return productRepository.findForAdmin(status, kw, pageable).map(productDtoMapper::toDto);
     }
 
     @Transactional

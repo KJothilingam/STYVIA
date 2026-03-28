@@ -61,9 +61,7 @@ backend/*.ear
 backend/*.zip
 backend/*.tar.gz
 backend/*.rar
-backend/.mvn/
-backend/mvnw
-backend/mvnw.cmd
+# Keep Maven wrapper in repo when present (./mvnw) so clones work without global Maven
 
 # Backend IDE
 backend/.idea/

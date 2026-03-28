@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Table,
@@ -50,6 +51,13 @@ import {
 } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import SafeProductImage from '@/components/SafeProductImage';
+import {
+  adminContentClass,
+  adminGlassCard,
+  adminPageShell,
+  AdminStudioBackdrop,
+} from '@/components/layout/AdminStudioChrome';
+import { getAdminProductThumbnailUrls } from '@/lib/localListingImages';
 import adminService, { type AdminProductDTO } from '@/services/adminService';
 import { useToast } from '@/hooks/use-toast';
 import { adminQueryKeys } from '@/lib/adminQueryKeys';
@@ -57,6 +65,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleCheck,
+  LayoutDashboard,
   Loader2,
   Package,
   Pencil,
@@ -64,11 +73,12 @@ import {
   RefreshCw,
   Ruler,
   Search,
+  Sparkles,
   Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-const PAGE_SIZE = 12;
+const PAGE_SIZE_OPTIONS = [12, 24, 50, 100] as const;
 
 const GENDERS = ['MEN', 'WOMEN', 'KIDS', 'UNISEX'] as const;
 
@@ -99,6 +109,7 @@ const AdminProducts = () => {
   const [qInput, setQInput] = useState('');
   const [debouncedQ, setDebouncedQ] = useState('');
   const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState<number>(50);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editProduct, setEditProduct] = useState<AdminProductDTO | null>(null);
@@ -122,16 +133,16 @@ const AdminProducts = () => {
 
   useEffect(() => {
     setPage(0);
-  }, [debouncedQ, statusFilter]);
+  }, [debouncedQ, statusFilter, pageSize]);
 
   const { data, isLoading, isFetching, refetch, error } = useQuery({
-    queryKey: adminQueryKeys.products(statusFilter, debouncedQ, page, PAGE_SIZE),
+    queryKey: adminQueryKeys.products(statusFilter, debouncedQ, page, pageSize),
     queryFn: () =>
       adminService.getAdminProducts({
         status: statusFilter,
         q: debouncedQ || undefined,
         page,
-        size: PAGE_SIZE,
+        size: pageSize,
       }),
     placeholderData: (prev) => prev,
   });
@@ -172,6 +183,8 @@ const AdminProducts = () => {
   const products = data?.content ?? [];
   const totalPages = data?.totalPages ?? 0;
   const totalElements = data?.totalElements ?? 0;
+  const rangeFrom = totalElements === 0 ? 0 : page * pageSize + 1;
+  const rangeTo = Math.min((page + 1) * pageSize, totalElements);
 
   const invalidateProducts = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['admin', 'products'] });
@@ -379,69 +392,115 @@ const AdminProducts = () => {
     sizeRows.some((r) => r.size.trim()) &&
     (sizesDirty || sizesInitialEmpty);
 
-  const categoryLabel = useMemo(() => {
-    const map = new Map(categories.map((c) => [c.id, c.name]));
-    return (p: AdminProductDTO) =>
-      (p.categories ?? [])
-        .map((c) => map.get(c.id) ?? c.name)
-        .filter(Boolean)
-        .slice(0, 2)
-        .join(', ') || '—';
-  }, [categories]);
-
   return (
-    <div className="min-h-full bg-gradient-to-b from-slate-50/90 to-background dark:from-slate-950/40">
-      <div className="mx-auto max-w-7xl space-y-6 p-6 lg:p-8">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-primary">
-              <Package className="h-8 w-8 opacity-90" />
-              <h1 className="text-3xl font-semibold tracking-tight">Products</h1>
+    <div className={adminPageShell}>
+      <AdminStudioBackdrop />
+      <div className={cn(adminContentClass, 'motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-500')}>
+        <nav className="text-xs text-muted-foreground motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300">
+          <Link
+            to="/admin"
+            className="inline-flex items-center gap-1 rounded-full px-0.5 py-0.5 transition-colors hover:text-indigo-700 dark:hover:text-indigo-300"
+          >
+            <LayoutDashboard className="h-3.5 w-3.5" />
+            Dashboard
+          </Link>
+          <span className="mx-2 opacity-50">/</span>
+          <span className="font-medium text-foreground">Products</span>
+        </nav>
+
+        <div
+          className={cn(
+            adminGlassCard,
+            'relative overflow-hidden px-5 py-6 sm:px-7 sm:py-7 motion-safe:animate-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-500',
+          )}
+          style={{ animationFillMode: 'both' }}
+        >
+          <div
+            className="pointer-events-none absolute inset-x-8 top-3 h-px rounded-full bg-[length:200%_100%] bg-gradient-to-r from-transparent via-indigo-400/38 to-transparent opacity-90 motion-safe:animate-wardrobe-rail-shine dark:via-indigo-400/28"
+            aria-hidden
+          />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-indigo-500/[0.05] via-transparent to-cyan-500/[0.05]" aria-hidden />
+          <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-cyan-600 text-white shadow-lg shadow-indigo-600/30 ring-2 ring-indigo-200/60 dark:ring-white/12 motion-safe:transition-transform motion-safe:duration-500 motion-safe:hover:scale-[1.02]">
+                <Package className="h-8 w-8" aria-hidden />
+              </div>
+              <div className="min-w-0">
+                <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-indigo-200/90 bg-indigo-100/90 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-950 dark:border-indigo-500/30 dark:bg-indigo-500/15 dark:text-indigo-100">
+                  <span>Catalog</span>
+                  <Sparkles className="h-3 w-3 shrink-0 text-amber-600 dark:text-amber-200/80" />
+                </div>
+                <h1 className="font-display-hero text-3xl font-semibold tracking-tight sm:text-4xl lg:text-5xl">
+                  <span className="text-foreground">Product </span>
+                  <span className="bg-gradient-to-r from-indigo-600 via-violet-600 to-cyan-600 bg-[length:200%_auto] bg-clip-text text-transparent motion-safe:animate-home-gradient-shift dark:from-indigo-300 dark:via-violet-300 dark:to-cyan-300">
+                    studio
+                  </span>
+                </h1>
+                <p className="mt-2 max-w-2xl text-sm text-muted-foreground sm:text-base">
+                  Create items, adjust pricing, manage fit sizes, or disable listings — same chrome as Orders.
+                </p>
+              </div>
             </div>
-            <p className="text-muted-foreground max-w-xl text-sm leading-relaxed">
-              Create catalog items, adjust pricing, manage fit measurements, or disable listings without deleting history.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
-              <Search className="text-muted-foreground absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
-              <Input
-                placeholder="Search name or brand…"
-                className="rounded-xl border-border/80 bg-background/80 pl-9 shadow-sm"
-                value={qInput}
-                onChange={(e) => setQInput(e.target.value)}
-              />
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
+                <Search className="text-muted-foreground absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
+                <Input
+                  placeholder="Search name or brand…"
+                  className="h-10 rounded-xl border-border/70 bg-background/90 pl-9 shadow-sm backdrop-blur-sm"
+                  value={qInput}
+                  onChange={(e) => setQInput(e.target.value)}
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v)}>
+                <SelectTrigger className="h-10 w-full min-w-[140px] rounded-xl border-border/70 bg-background/90 shadow-sm backdrop-blur-sm sm:w-[160px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All statuses</SelectItem>
+                  <SelectItem value="ACTIVE">Active</SelectItem>
+                  <SelectItem value="DISABLED">Disabled</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select
+                value={String(pageSize)}
+                onValueChange={(v) => setPageSize(Number(v))}
+              >
+                <SelectTrigger className="h-10 w-[120px] shrink-0 rounded-xl border-border/70 bg-background/90 shadow-sm backdrop-blur-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAGE_SIZE_OPTIONS.map((n) => (
+                    <SelectItem key={n} value={String(n)}>
+                      {n} / page
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-10 w-10 shrink-0 rounded-xl border-border/70 bg-background/80 shadow-sm backdrop-blur-sm"
+                onClick={() => refetch()}
+                disabled={isFetching}
+                aria-label="Refresh"
+              >
+                <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
+              </Button>
+              <Button
+                type="button"
+                className="h-10 gap-2 rounded-xl bg-foreground text-background shadow-sm hover:bg-foreground/90"
+                onClick={() => setCreateOpen(true)}
+              >
+                <Plus className="h-4 w-4" />
+                New product
+              </Button>
             </div>
-            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v)}>
-              <SelectTrigger className="w-[160px] rounded-xl border-border/80 bg-background/80 shadow-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All</SelectItem>
-                <SelectItem value="ACTIVE">Active</SelectItem>
-                <SelectItem value="DISABLED">Disabled</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="rounded-xl shrink-0"
-              onClick={() => refetch()}
-              disabled={isFetching}
-              aria-label="Refresh"
-            >
-              <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
-            </Button>
-            <Button type="button" className="rounded-xl gap-2 shadow-sm" onClick={() => setCreateOpen(true)}>
-              <Plus className="h-4 w-4" />
-              New product
-            </Button>
           </div>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-3">
-          <Card className="rounded-2xl border-border/60 bg-card/80 shadow-sm backdrop-blur-sm">
+          <Card className={cn(adminGlassCard, 'overflow-hidden')}>
             <CardHeader className="pb-2">
               <CardDescription>Catalog matches</CardDescription>
               <CardTitle className="text-2xl tabular-nums">
@@ -449,35 +508,54 @@ const AdminProducts = () => {
               </CardTitle>
             </CardHeader>
           </Card>
-          <Card className="rounded-2xl border-border/60 bg-card/80 shadow-sm backdrop-blur-sm sm:col-span-2">
+          <Card className={cn(adminGlassCard, 'overflow-hidden sm:col-span-2')}>
             <CardHeader className="pb-2">
               <CardDescription>Page</CardDescription>
               <CardTitle className="text-lg font-medium text-muted-foreground">
                 {totalPages === 0 ? '—' : `${page + 1} of ${totalPages}`}
+                {totalElements > 0 ? (
+                  <span className="mt-1 block text-sm font-normal text-muted-foreground">
+                    Rows {rangeFrom}–{rangeTo} of {totalElements}
+                  </span>
+                ) : null}
               </CardTitle>
             </CardHeader>
           </Card>
         </div>
 
         {error ? (
-          <Card className="rounded-2xl border-destructive/30 bg-destructive/5">
+          <Card className={cn(adminGlassCard, 'border-destructive/30 bg-destructive/5')}>
             <CardContent className="py-10 text-center text-sm text-destructive">
               Failed to load products. Check your connection and try refresh.
             </CardContent>
           </Card>
         ) : (
-          <Card className="overflow-hidden rounded-2xl border-border/60 shadow-md">
+          <Card className={cn(adminGlassCard, 'overflow-hidden')}>
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="border-border/60 hover:bg-transparent">
-                    <TableHead className="w-[72px]" />
-                    <TableHead>Product</TableHead>
-                    <TableHead>Brand</TableHead>
-                    <TableHead className="text-right">Price</TableHead>
-                    <TableHead>Gender</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="w-[200px] text-right">Actions</TableHead>
+                    <TableHead className="w-[108px] min-w-[108px] py-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Image
+                    </TableHead>
+                    <TableHead className="min-w-[220px] py-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Product
+                    </TableHead>
+                    <TableHead className="min-w-[140px] py-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Brand
+                    </TableHead>
+                    <TableHead className="min-w-[120px] py-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Price
+                    </TableHead>
+                    <TableHead className="min-w-[100px] py-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Gender
+                    </TableHead>
+                    <TableHead className="min-w-[110px] py-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Status
+                    </TableHead>
+                    <TableHead className="min-w-[280px] py-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Actions
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -485,8 +563,8 @@ const AdminProducts = () => {
                     Array.from({ length: 6 }).map((_, i) => (
                       <TableRow key={i}>
                         {Array.from({ length: 7 }).map((__, j) => (
-                          <TableCell key={j}>
-                            <Skeleton className="h-10 w-full" />
+                          <TableCell key={j} className="py-5">
+                            <Skeleton className="h-14 w-full rounded-xl" />
                           </TableCell>
                         ))}
                       </TableRow>
@@ -503,86 +581,97 @@ const AdminProducts = () => {
                   ) : (
                     products.map((p) => (
                       <TableRow key={p.id} className="border-border/50 hover:bg-muted/40">
-                        <TableCell>
-                          <div className="bg-muted relative h-12 w-12 overflow-hidden rounded-xl border border-border/50">
+                        <TableCell className="align-middle py-5">
+                          <div className="bg-muted relative h-[4.5rem] w-[3.75rem] shrink-0 overflow-hidden rounded-2xl border border-border/60 shadow-sm sm:h-[5.25rem] sm:w-[4.25rem]">
                             <SafeProductImage
-                              urls={p.images ?? []}
+                              urls={getAdminProductThumbnailUrls(p.name, p.brand, p.images)}
                               alt={p.name}
                               className="absolute inset-0"
                               classNameImg="h-full w-full object-cover"
                             />
                           </div>
                         </TableCell>
-                        <TableCell>
-                          <div className="flex flex-col gap-0.5">
-                            <span className="font-medium leading-snug">{p.name}</span>
-                            <span className="text-muted-foreground text-xs">{categoryLabel(p)}</span>
+                        <TableCell className="align-middle py-5">
+                          <div className="max-w-md pr-2">
+                            <span className="text-base font-semibold leading-snug text-foreground sm:text-lg">
+                              {p.name}
+                            </span>
                           </div>
                         </TableCell>
-                        <TableCell className="text-muted-foreground text-sm">{p.brand}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="font-semibold tabular-nums">{money(p.price)}</div>
+                        <TableCell className="align-middle py-5 text-base font-medium text-foreground/90">
+                          {p.brand}
+                        </TableCell>
+                        <TableCell className="align-middle py-5 text-right">
+                          <div className="text-lg font-bold tabular-nums text-foreground sm:text-xl">
+                            {money(p.price)}
+                          </div>
                           {p.originalPrice != null && p.originalPrice > p.price ? (
-                            <div className="text-muted-foreground text-xs line-through tabular-nums">
+                            <div className="mt-1 text-sm text-muted-foreground line-through tabular-nums">
                               {money(p.originalPrice)}
                             </div>
                           ) : null}
                         </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary" className="rounded-md font-normal">
+                        <TableCell className="align-middle py-5">
+                          <Badge
+                            variant="secondary"
+                            className="rounded-lg px-3 py-1.5 text-sm font-medium normal-case tracking-normal"
+                          >
                             {p.gender}
                           </Badge>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="align-middle py-5">
                           <Badge
                             variant="outline"
-                            className={cn('rounded-full border font-normal', productStatusClass(p.status))}
+                            className={cn(
+                              'rounded-full border px-3 py-1.5 text-sm font-medium',
+                              productStatusClass(p.status),
+                            )}
                           >
                             {p.status === 'DISABLED' ? 'Disabled' : 'Active'}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex flex-wrap justify-end gap-1">
+                        <TableCell className="align-middle py-5 text-right">
+                          <div className="flex flex-wrap justify-end gap-2">
                             <Button
                               type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 rounded-lg px-2"
+                              variant="outline"
+                              size="default"
+                              className="h-10 gap-2 rounded-xl border-border/70 px-4 text-sm font-medium"
                               onClick={() => setEditProduct(p)}
                             >
-                              <Pencil className="mr-1 h-3.5 w-3.5" />
+                              <Pencil className="h-4 w-4 shrink-0" />
                               Edit
                             </Button>
                             <Button
                               type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 rounded-lg px-2"
+                              variant="outline"
+                              size="default"
+                              className="h-10 gap-2 rounded-xl border-border/70 px-4 text-sm font-medium"
                               onClick={() => setSizesProduct(p)}
                             >
-                              <Ruler className="mr-1 h-3.5 w-3.5" />
+                              <Ruler className="h-4 w-4 shrink-0" />
                               Sizes
                             </Button>
                             {p.status === 'DISABLED' ? (
                               <Button
                                 type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 rounded-lg px-2 text-emerald-700 hover:text-emerald-800 dark:text-emerald-400"
+                                variant="outline"
+                                size="default"
+                                className="h-10 gap-2 rounded-xl border-emerald-500/30 px-4 text-sm font-medium text-emerald-700 hover:bg-emerald-500/10 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300"
                                 onClick={() => void enableProduct(p)}
                               >
-                                <CircleCheck className="mr-1 h-3.5 w-3.5" />
+                                <CircleCheck className="h-4 w-4 shrink-0" />
                                 Enable
                               </Button>
                             ) : (
                               <Button
                                 type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="text-destructive hover:text-destructive h-8 rounded-lg px-2"
+                                variant="outline"
+                                size="default"
+                                className="h-10 gap-2 rounded-xl border-destructive/25 px-4 text-sm font-medium text-destructive hover:bg-destructive/10"
                                 onClick={() => setDeleteProduct(p)}
                               >
-                                <Trash2 className="mr-1 h-3.5 w-3.5" />
+                                <Trash2 className="h-4 w-4 shrink-0" />
                                 Disable
                               </Button>
                             )}
@@ -595,17 +684,18 @@ const AdminProducts = () => {
               </Table>
             </div>
 
-            {totalPages > 1 ? (
-              <div className="flex items-center justify-between border-t border-border/60 bg-muted/20 px-4 py-3">
+            {!isLoading && totalElements > 0 ? (
+              <div className="flex flex-col gap-3 border-t border-border/60 bg-muted/20 px-4 py-3 backdrop-blur-sm dark:bg-muted/15 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-muted-foreground text-sm">
-                  Showing {products.length} of {totalElements}
+                  Rows {rangeFrom}–{rangeTo} of {totalElements}
+                  {totalPages > 1 ? ` · Page ${page + 1} of ${totalPages}` : null}
                 </p>
                 <div className="flex gap-2">
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="rounded-lg"
+                    className="rounded-xl border-border/70"
                     disabled={page <= 0}
                     onClick={() => setPage((x) => Math.max(0, x - 1))}
                   >
@@ -616,7 +706,7 @@ const AdminProducts = () => {
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="rounded-lg"
+                    className="rounded-xl border-border/70"
                     disabled={page >= totalPages - 1}
                     onClick={() => setPage((x) => x + 1)}
                   >

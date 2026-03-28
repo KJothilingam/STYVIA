@@ -1,6 +1,8 @@
 # Clone & local setup (same state on every machine)
 
-Use this after `git clone` so the app matches the author’s machine: **backend + MySQL + frontend** must all run, and the database needs product rows.
+**Start here for the full checklist:** [README.md](./README.md) (prerequisites, DB, run commands, Docker, env vars).
+
+This file adds **product images**, **teammate parity**, and **common pitfalls** after `git clone`: **backend + MySQL + frontend** must all run, and the database needs product rows.
 
 ## Product images (why grids look empty or broken)
 

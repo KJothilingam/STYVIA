@@ -121,7 +121,7 @@ export function MapComponent({
 
   if (!mapApiReady) {
     return (
-      <div className="flex h-full min-h-[240px] items-center justify-center rounded-xl border bg-muted/30">
+      <div className="flex h-full min-h-[240px] w-full items-center justify-center bg-muted/25 dark:bg-muted/20">
         <span className="text-sm text-muted-foreground">Loading map…</span>
       </div>
     );

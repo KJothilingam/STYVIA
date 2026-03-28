@@ -79,6 +79,14 @@ public class WardrobeController {
         return ResponseEntity.ok(ApiResponse.success("OK", null));
     }
 
+    @PostMapping("/{wardrobeItemId}/clear-repair")
+    public ResponseEntity<ApiResponse<Void>> clearRepair(
+            @AuthenticationPrincipal UserPrincipal user,
+            @PathVariable Long wardrobeItemId) {
+        wardrobeService.clearRepairNeed(user.getId(), wardrobeItemId);
+        return ResponseEntity.ok(ApiResponse.success("OK", null));
+    }
+
     @PostMapping("/{wardrobeItemId}/donate")
     public ResponseEntity<ApiResponse<Void>> donate(
             @AuthenticationPrincipal UserPrincipal user,
@@ -94,6 +102,22 @@ public class WardrobeController {
             @AuthenticationPrincipal UserPrincipal user,
             @Valid @RequestBody WardrobeLogRequest req) {
         wardrobeService.logUnified(user.getId(), req);
+        return ResponseEntity.ok(ApiResponse.success("OK", null));
+    }
+
+    @PostMapping("/{wardrobeItemId}/mark-donated")
+    public ResponseEntity<ApiResponse<Void>> markDonated(
+            @AuthenticationPrincipal UserPrincipal user,
+            @PathVariable Long wardrobeItemId) {
+        wardrobeService.markDonatedByUser(user.getId(), wardrobeItemId, null);
+        return ResponseEntity.ok(ApiResponse.success("OK", null));
+    }
+
+    @DeleteMapping("/{wardrobeItemId}")
+    public ResponseEntity<ApiResponse<Void>> deleteItem(
+            @AuthenticationPrincipal UserPrincipal user,
+            @PathVariable Long wardrobeItemId) {
+        wardrobeService.deleteForUser(user.getId(), wardrobeItemId);
         return ResponseEntity.ok(ApiResponse.success("OK", null));
     }
 }

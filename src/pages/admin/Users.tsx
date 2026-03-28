@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Table,
@@ -9,7 +10,6 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -51,13 +51,22 @@ import { useToast } from '@/hooks/use-toast';
 import { adminQueryKeys } from '@/lib/adminQueryKeys';
 import { useStore } from '@/context/StoreContext';
 import {
+  DonationsPageBackdrop,
+  donationsAmbientPageClass,
+  donationsMainGlassPanelClass,
+  donationsPageContentClass,
+} from '@/components/donations/DonationsPageChrome';
+import {
+  ArrowLeft,
   ChevronLeft,
   ChevronRight,
+  Leaf,
   Loader2,
   Plus,
   RefreshCw,
   Search,
   Shield,
+  Sparkles,
   Trash2,
   UserCircle,
   UserPlus,
@@ -250,31 +259,61 @@ const AdminUsers = () => {
   };
 
   return (
-    <div className="min-h-full bg-gradient-to-b from-slate-50/90 to-background dark:from-slate-950/40">
-      <div className="mx-auto max-w-7xl space-y-6 p-6 lg:p-8">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-primary">
-              <UserCircle className="h-8 w-8 opacity-90" />
-              <h1 className="text-3xl font-semibold tracking-tight">Users</h1>
+    <div className={donationsAmbientPageClass}>
+      <DonationsPageBackdrop />
+      <div className={donationsPageContentClass}>
+        <nav className="text-sm text-muted-foreground motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-500">
+          <Link
+            to="/admin"
+            className="inline-flex items-center gap-1.5 rounded-full px-1 py-0.5 transition-colors hover:text-emerald-700 dark:hover:text-emerald-200"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Dashboard
+          </Link>
+          <span className="mx-2 opacity-50">/</span>
+          <span className="font-medium text-foreground">Users (admin)</span>
+        </nav>
+
+        <header
+          className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-3 motion-safe:duration-500"
+          style={{ animationFillMode: 'both' }}
+        >
+          <div className="min-w-0 max-w-3xl space-y-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200/80 bg-emerald-100/80 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.22em] text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-500/15 dark:text-emerald-100">
+              <Leaf className="h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-200" />
+              Community
+              <Sparkles className="h-3 w-3 shrink-0 text-amber-600/90 dark:text-amber-200/90" />
             </div>
-            <p className="text-muted-foreground max-w-xl text-sm leading-relaxed">
-              Create accounts, edit profiles and roles, reset passwords, activate or deactivate access, and permanently
-              remove users who have never placed an order.
-            </p>
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-600/25 ring-2 ring-emerald-200/60 dark:shadow-emerald-600/35 dark:ring-white/20 motion-safe:transition-transform motion-safe:duration-500 motion-safe:hover:scale-105">
+                <UserCircle className="h-8 w-8" aria-hidden />
+              </div>
+              <div className="min-w-0">
+                <h1 className="font-display-hero text-3xl font-semibold tracking-tight text-foreground drop-shadow-sm md:text-4xl lg:text-5xl">
+                  Users{' '}
+                  <span className="bg-gradient-to-r from-emerald-600 via-teal-600 to-amber-600 bg-[length:200%_auto] bg-clip-text text-transparent motion-safe:animate-home-gradient-shift dark:from-emerald-200 dark:via-teal-200 dark:to-amber-200">
+                    &amp; access
+                  </span>
+                </h1>
+                <p className="mt-3 text-sm leading-relaxed text-muted-foreground md:text-base">
+                  Create accounts, edit roles, reset passwords, activate or deactivate access, and remove users who have never
+                  placed an order.
+                </p>
+              </div>
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
               <Search className="text-muted-foreground absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
               <Input
                 placeholder="Search name or email…"
-                className="rounded-xl border-border/80 bg-background/80 pl-9 shadow-sm"
+                className="h-10 rounded-xl border-border/80 bg-background/90 pl-9 shadow-sm backdrop-blur-sm"
                 value={qInput}
                 onChange={(e) => setQInput(e.target.value)}
               />
             </div>
             <Select value={activeFilter} onValueChange={(v) => setActiveFilter(v as typeof activeFilter)}>
-              <SelectTrigger className="w-[160px] rounded-xl border-border/80 bg-background/80 shadow-sm">
+              <SelectTrigger className="h-10 w-[160px] rounded-xl border-border/80 bg-background/90 shadow-sm backdrop-blur-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -287,57 +326,85 @@ const AdminUsers = () => {
               type="button"
               variant="outline"
               size="icon"
-              className="rounded-xl shrink-0"
+              className="h-10 w-10 shrink-0 rounded-xl border-border/80 bg-background/90 shadow-sm backdrop-blur-sm"
               onClick={() => refetch()}
               disabled={isFetching}
               aria-label="Refresh"
             >
               <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
             </Button>
-            <Button type="button" className="rounded-xl gap-2 shadow-sm" onClick={() => setCreateOpen(true)}>
+            <Button
+              type="button"
+              className="h-10 gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 text-primary-foreground shadow-lg shadow-emerald-600/20 transition hover:from-emerald-600 hover:to-teal-500 hover:shadow-emerald-600/30"
+              onClick={() => setCreateOpen(true)}
+            >
               <Plus className="h-4 w-4" />
               New user
             </Button>
           </div>
-        </div>
+        </header>
 
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Card className="rounded-2xl border-border/60 bg-card/80 shadow-sm backdrop-blur-sm">
-            <CardHeader className="pb-2">
-              <CardDescription>Matching users</CardDescription>
-              <CardTitle className="text-2xl tabular-nums">
+        <div
+          className={cn(
+            donationsMainGlassPanelClass,
+            'motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-500',
+          )}
+          style={{ animationFillMode: 'both', animationDelay: '80ms' }}
+        >
+          <div
+            className="pointer-events-none absolute inset-x-8 top-3 h-px rounded-full bg-[length:200%_100%] bg-gradient-to-r from-transparent via-emerald-400/40 to-transparent opacity-90 motion-safe:animate-wardrobe-rail-shine dark:via-emerald-300/35"
+            aria-hidden
+          />
+
+          <div className="relative z-10 mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div
+              className={cn(
+                'rounded-xl border border-border/80 bg-background/85 px-3 py-2.5 text-center shadow-sm backdrop-blur-sm sm:text-left',
+                'transition-all duration-300 hover:-translate-y-0.5 hover:border-emerald-500/30 hover:shadow-lg hover:shadow-emerald-500/[0.08]',
+                'border-emerald-500/20 bg-emerald-500/[0.04]',
+              )}
+            >
+              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">Matching users</p>
+              <p className="mt-0.5 text-xl font-bold tabular-nums text-foreground sm:text-2xl">
                 {isLoading ? <Skeleton className="h-8 w-16" /> : totalElements}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-          <Card className="rounded-2xl border-border/60 bg-card/80 shadow-sm backdrop-blur-sm sm:col-span-2">
-            <CardHeader className="pb-2">
-              <CardDescription>Page</CardDescription>
-              <CardTitle className="text-lg font-medium text-muted-foreground">
+              </p>
+            </div>
+            <div
+              className={cn(
+                'col-span-2 rounded-xl border border-border/80 bg-background/85 px-3 py-2.5 text-center shadow-sm backdrop-blur-sm sm:col-span-2 sm:text-left',
+                'transition-all duration-300 hover:-translate-y-0.5 hover:border-teal-500/30 hover:shadow-lg hover:shadow-teal-500/[0.08]',
+                'border-teal-500/15 bg-teal-500/[0.04]',
+              )}
+            >
+              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">Page</p>
+              <p className="mt-0.5 text-lg font-semibold text-muted-foreground sm:text-xl">
                 {totalPages === 0 ? '—' : `${page + 1} of ${totalPages}`}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-      </div>
+              </p>
+            </div>
+          </div>
 
-        {error ? (
-          <Card className="rounded-2xl border-destructive/30 bg-destructive/5">
-            <div className="py-10 text-center text-sm text-destructive">Failed to load users.</div>
-          </Card>
-        ) : (
-          <Card className="overflow-hidden rounded-2xl border-border/60 shadow-md">
-            <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-                  <TableRow className="border-border/60 hover:bg-transparent">
-                    <TableHead>User</TableHead>
-                    <TableHead>Roles</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Joined</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+          {error ? (
+            <div className="relative z-10 mt-6 rounded-xl border border-destructive/30 bg-destructive/[0.06] py-10 text-center text-sm text-destructive">
+              Failed to load users.
+            </div>
+          ) : (
+            <section className="relative z-10 mt-6 overflow-hidden rounded-2xl border border-emerald-500/15 bg-gradient-to-b from-muted/50 via-muted/20 to-background shadow-md">
+              <div
+                className="pointer-events-none absolute -left-16 top-0 h-36 w-36 rounded-full bg-emerald-400/10 blur-3xl motion-safe:animate-body-zone-float"
+                aria-hidden
+              />
+              <div className="relative z-10 overflow-x-auto">
+                <Table>
+                <TableHeader>
+                  <TableRow className="border-border/60 hover:bg-transparent bg-muted/25">
+                    <TableHead className="font-semibold">User</TableHead>
+                    <TableHead className="font-semibold">Roles</TableHead>
+                    <TableHead className="font-semibold">Status</TableHead>
+                    <TableHead className="font-semibold">Joined</TableHead>
+                    <TableHead className="text-right font-semibold">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {isLoading && !data ? (
                     Array.from({ length: 6 }).map((_, i) => (
                       <TableRow key={i}>
@@ -358,7 +425,10 @@ const AdminUsers = () => {
                     rows.map((u) => {
                       const { customer, admin } = rolesToFlags(u.roles);
                       return (
-                        <TableRow key={u.id} className="border-border/50 hover:bg-muted/40">
+                        <TableRow
+                          key={u.id}
+                          className="border-border/50 motion-safe:transition-colors motion-safe:duration-200 hover:bg-gradient-to-r hover:from-emerald-500/[0.05] hover:to-transparent"
+                        >
                           <TableCell>
                             <button
                               type="button"
@@ -370,7 +440,7 @@ const AdminUsers = () => {
                               {u.phone ? <div className="text-muted-foreground text-xs">{u.phone}</div> : null}
                             </button>
                           </TableCell>
-                <TableCell>
+                          <TableCell>
                             <div className="flex flex-wrap gap-1">
                               {customer ? (
                                 <Badge variant="secondary" className="rounded-md font-normal">
@@ -387,8 +457,8 @@ const AdminUsers = () => {
                                 </Badge>
                               ) : null}
                             </div>
-                </TableCell>
-                <TableCell>
+                          </TableCell>
+                          <TableCell>
                             <button
                               type="button"
                               onClick={() => quickToggleActive(u, !u.isActive)}
@@ -430,18 +500,18 @@ const AdminUsers = () => {
                                 <Trash2 className="mr-1 h-3.5 w-3.5" />
                                 Delete
                               </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
+                            </div>
+                          </TableCell>
+                        </TableRow>
                       );
                     })
                   )}
-          </TableBody>
-        </Table>
-            </div>
+                </TableBody>
+                </Table>
+              </div>
 
             {totalPages > 1 ? (
-              <div className="flex items-center justify-between border-t border-border/60 bg-muted/20 px-4 py-3">
+              <div className="relative z-10 flex items-center justify-between border-t border-border/60 bg-gradient-to-r from-emerald-500/[0.06] via-muted/25 to-teal-500/[0.05] px-4 py-3">
                 <p className="text-muted-foreground text-sm">
                   Showing {rows.length} of {totalElements}
                 </p>
@@ -471,8 +541,9 @@ const AdminUsers = () => {
                 </div>
               </div>
             ) : null}
-      </Card>
-        )}
+            </section>
+          )}
+        </div>
       </div>
 
       <Dialog
@@ -627,7 +698,7 @@ const AdminUsers = () => {
       </AlertDialog>
 
       <Sheet open={!!detailUser} onOpenChange={(o) => !o && setDetailUser(null)}>
-        <SheetContent className="w-full sm:max-w-md">
+        <SheetContent className="w-full border-l border-emerald-500/15 bg-gradient-to-b from-card via-card to-emerald-500/[0.04] sm:max-w-md">
           {detailUser ? (
             <>
               <SheetHeader className="text-left">

@@ -4,6 +4,7 @@ import com.stylediscovery.dto.OrderDTO;
 import com.stylediscovery.dto.PlaceOrderRequest;
 import com.stylediscovery.entity.*;
 import com.stylediscovery.enums.OrderStatus;
+import com.stylediscovery.enums.PaymentMethod;
 import com.stylediscovery.enums.PaymentStatus;
 import com.stylediscovery.exception.BadRequestException;
 import com.stylediscovery.exception.ResourceNotFoundException;
@@ -119,6 +120,12 @@ public class OrderService {
         BigDecimal totalAmount = subtotal.add(deliveryFee).subtract(discount);
 
         String orderNumber = "ORD" + System.currentTimeMillis();
+        PaymentMethod paymentMethod = request.getPaymentMethod();
+        boolean prepaidOnline = paymentMethod == PaymentMethod.CARD
+                || paymentMethod == PaymentMethod.UPI
+                || paymentMethod == PaymentMethod.NET_BANKING;
+        PaymentStatus initialPaymentStatus = prepaidOnline ? PaymentStatus.SUCCESS : PaymentStatus.PENDING;
+
         Order order = Order.builder()
                 .orderNumber(orderNumber)
                 .user(cart.getUser())
@@ -128,8 +135,8 @@ public class OrderService {
                 .deliveryFee(deliveryFee)
                 .totalAmount(totalAmount)
                 .orderStatus(OrderStatus.PLACED)
-                .paymentStatus(PaymentStatus.PENDING)
-                .paymentMethod(request.getPaymentMethod())
+                .paymentStatus(initialPaymentStatus)
+                .paymentMethod(paymentMethod)
                 .build();
 
         order = orderRepository.save(order);
@@ -150,9 +157,9 @@ public class OrderService {
         Payment payment = Payment.builder()
                 .order(order)
                 .transactionId("TXN" + UUID.randomUUID().toString().replace("-", ""))
-                .paymentMethod(request.getPaymentMethod())
+                .paymentMethod(paymentMethod)
                 .amount(totalAmount)
-                .status(PaymentStatus.PENDING)
+                .status(initialPaymentStatus)
                 .paymentGateway("MOCK_GATEWAY")
                 .build();
         paymentRepository.save(payment);

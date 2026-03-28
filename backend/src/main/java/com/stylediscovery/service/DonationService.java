@@ -29,6 +29,7 @@ public class DonationService {
     private final DonationPickupRequestRepository pickupRepo;
     private final DonationBoxRequestRepository boxRepo;
     private final UserRepository userRepository;
+    private final WardrobeService wardrobeService;
 
     @Transactional(readOnly = true)
     public List<DonationPickupRequestDTO> listPickups(Long userId) {
@@ -41,6 +42,11 @@ public class DonationService {
     public DonationPickupRequestDTO createPickup(Long userId, CreateDonationPickupRequest req) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        Long wid = req.getWardrobeItemId();
+        if (wid != null && wardrobeService.hasActiveDonationPickupForWardrobeItem(userId, wid)) {
+            throw new BadRequestException(
+                    "A pickup request is already active for this wardrobe item. Open Donations to track it, or wait until it is completed or cancelled.");
+        }
         DonationPickupRequest e = DonationPickupRequest.builder()
                 .user(user)
                 .wardrobeItemId(req.getWardrobeItemId())
@@ -112,7 +118,13 @@ public class DonationService {
         }
         appendAdminReply(e, body != null ? body.getReply() : null);
         e.setStatus(DonationPickupStatus.COMPLETED);
-        return toAdminPickupDto(pickupRepo.save(e));
+        DonationPickupRequest saved = pickupRepo.save(e);
+        Long wid = saved.getWardrobeItemId();
+        if (wid != null) {
+            Long ownerId = saved.getUser().getId();
+            wardrobeService.applyDonatedAfterPickup(ownerId, wid, "Donation pickup completed.");
+        }
+        return toAdminPickupDto(saved);
     }
 
     private void appendAdminReply(DonationPickupRequest e, String newPart) {

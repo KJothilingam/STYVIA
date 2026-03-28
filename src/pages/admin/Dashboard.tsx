@@ -53,8 +53,16 @@ import {
   ArrowRight,
   HeartHandshake,
   PieChart as PieChartIcon,
+  LayoutDashboard,
+  Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  adminContentClass,
+  adminGlassCard,
+  adminPageShell,
+  AdminStudioBackdrop,
+} from '@/components/layout/AdminStudioChrome';
 
 function formatInr(n: number) {
   return new Intl.NumberFormat('en-IN', {
@@ -249,50 +257,94 @@ const Dashboard = () => {
 
   if (loading) {
     return (
-      <div className="p-4 sm:p-6 lg:p-8 pb-10 max-w-[1600px] mx-auto space-y-8">
-        <div className="h-24 sm:h-28 bg-muted animate-pulse rounded-2xl" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-32 bg-muted animate-pulse rounded-2xl" />
-          ))}
-        </div>
-        <div className="grid xl:grid-cols-12 gap-6">
-          <div className="xl:col-span-7 h-[340px] bg-muted animate-pulse rounded-2xl" />
-          <div className="xl:col-span-5 flex flex-col gap-6">
-            <div className="h-[300px] bg-muted animate-pulse rounded-2xl" />
-            <div className="h-[300px] bg-muted animate-pulse rounded-2xl" />
+      <div className={adminPageShell}>
+        <AdminStudioBackdrop />
+        <div className={cn(adminContentClass, 'motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300')}>
+          <div className="h-28 rounded-[1.35rem] border border-border/40 bg-muted/50 animate-pulse dark:bg-muted/20 sm:h-32" />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div
+                key={i}
+                className="h-32 rounded-[1.35rem] border border-border/40 bg-muted/50 animate-pulse dark:bg-muted/20"
+              />
+            ))}
           </div>
+          <div className="grid gap-6 xl:grid-cols-12">
+            <div className="h-[340px] rounded-[1.35rem] border border-border/40 bg-muted/50 animate-pulse dark:bg-muted/20 xl:col-span-7" />
+            <div className="flex flex-col gap-6 xl:col-span-5">
+              <div className="h-[300px] rounded-[1.35rem] border border-border/40 bg-muted/50 animate-pulse dark:bg-muted/20" />
+              <div className="h-[300px] rounded-[1.35rem] border border-border/40 bg-muted/50 animate-pulse dark:bg-muted/20" />
+            </div>
+          </div>
+          <div className="h-[260px] rounded-[1.35rem] border border-border/40 bg-muted/50 animate-pulse dark:bg-muted/20" />
+          <div className="h-72 rounded-[1.35rem] border border-border/40 bg-muted/50 animate-pulse dark:bg-muted/20" />
         </div>
-        <div className="h-[260px] bg-muted animate-pulse rounded-2xl" />
-        <div className="h-72 bg-muted animate-pulse rounded-2xl" />
       </div>
     );
   }
 
   if (!stats) {
     return (
-      <div className="p-6">
-        <p className="text-muted-foreground">Could not load dashboard. Check your connection and admin access.</p>
+      <div className={adminPageShell}>
+        <AdminStudioBackdrop />
+        <div className={cn(adminContentClass, 'flex min-h-[40vh] items-center justify-center')}>
+          <div
+            className={cn(
+              adminGlassCard,
+              'max-w-md p-8 text-center motion-safe:animate-in motion-safe:zoom-in-95 motion-safe:duration-500',
+            )}
+          >
+            <LayoutDashboard className="mx-auto mb-4 h-12 w-12 text-muted-foreground opacity-60" />
+            <p className="text-sm font-medium text-foreground">Could not load dashboard</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Check your connection and that your account has admin access.
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 pb-10 max-w-[1600px] mx-auto space-y-8">
-      <div className="relative overflow-hidden rounded-2xl border border-border/70 bg-card/90 shadow-sm px-5 py-6 sm:px-7 sm:py-7">
+    <div className={adminPageShell}>
+      <AdminStudioBackdrop />
+      <div className={cn(adminContentClass, 'motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-500')}>
+      <div
+        className={cn(
+          adminGlassCard,
+          'relative overflow-hidden px-5 py-6 sm:px-7 sm:py-7 motion-safe:animate-in motion-safe:slide-in-from-bottom-3 motion-safe:duration-500',
+        )}
+        style={{ animationFillMode: 'both' }}
+      >
         <div
-          className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/[0.07] via-transparent to-[hsl(262_45%_48%)]/[0.08]"
+          className="pointer-events-none absolute inset-x-8 top-3 h-px rounded-full bg-[length:200%_100%] bg-gradient-to-r from-transparent via-indigo-400/38 to-transparent opacity-90 motion-safe:animate-wardrobe-rail-shine dark:via-indigo-400/28"
           aria-hidden
         />
-        <div className="relative">
-          <span className="mb-3 inline-flex items-center rounded-full border border-border/60 bg-background/80 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Admin overview
-          </span>
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Dashboard</h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted-foreground sm:text-base">
-            Orders, revenue, catalog, and customers at a glance. Charts combine sample history with live data where
-            noted.
-          </p>
+        <div
+          className="pointer-events-none absolute inset-0 bg-gradient-to-br from-indigo-500/[0.06] via-transparent to-violet-500/[0.07]"
+          aria-hidden
+        />
+        <div className="relative flex flex-col gap-5 sm:flex-row sm:items-start">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-700 text-white shadow-lg shadow-indigo-600/30 ring-2 ring-indigo-200/60 dark:shadow-indigo-950/50 dark:ring-white/12 motion-safe:transition-transform motion-safe:duration-500 motion-safe:hover:scale-[1.02]">
+            <LayoutDashboard className="h-8 w-8" aria-hidden />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-indigo-200/90 bg-indigo-100/90 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-950 dark:border-indigo-500/30 dark:bg-indigo-500/15 dark:text-indigo-100">
+              <span>Admin</span>
+              <Sparkles className="h-3 w-3 shrink-0 text-amber-600 dark:text-amber-200/80" />
+              overview
+            </div>
+            <h1 className="font-display-hero text-3xl font-semibold tracking-tight sm:text-4xl lg:text-5xl">
+              <span className="text-foreground">Command </span>
+              <span className="bg-gradient-to-r from-indigo-600 via-violet-600 to-cyan-600 bg-[length:200%_auto] bg-clip-text text-transparent motion-safe:animate-home-gradient-shift dark:from-indigo-300 dark:via-violet-300 dark:to-cyan-300">
+                center
+              </span>
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm text-muted-foreground sm:text-base">
+              Orders, revenue, catalog, and customers at a glance. Charts blend sample history with live data where
+              noted.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -337,7 +389,12 @@ const Dashboard = () => {
         if (p > 0) parts.push(`${p} pickup${p === 1 ? '' : 's'}`);
         if (b > 0) parts.push(`${b} empty box${b === 1 ? '' : 'es'}`);
         return (
-          <Card className="rounded-2xl border-amber-200 bg-amber-50/90 dark:bg-amber-950/25 dark:border-amber-900 shadow-sm">
+          <Card
+            className={cn(
+              adminGlassCard,
+              'border-amber-200/90 bg-amber-50/95 shadow-amber-500/10 dark:border-amber-800/50 dark:bg-amber-950/30 dark:shadow-none',
+            )}
+          >
             <CardContent className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 py-4">
               <div className="flex items-start gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/20 text-amber-900 dark:text-amber-200">
@@ -365,8 +422,8 @@ const Dashboard = () => {
 
       <div className="space-y-3">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Analytics</h2>
-        <div className="grid xl:grid-cols-12 gap-6">
-          <Card className="xl:col-span-7 rounded-2xl border-border/70 shadow-sm overflow-hidden">
+        <div className="grid gap-6 xl:grid-cols-12">
+          <Card className={cn(adminGlassCard, 'overflow-hidden xl:col-span-7')}>
             <CardHeader className="space-y-1 pb-2 px-5 sm:px-6 pt-5">
               <CardTitle className="text-lg">Revenue</CardTitle>
               <CardDescription>
@@ -423,8 +480,8 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
-          <div className="xl:col-span-5 flex flex-col gap-6">
-            <Card className="rounded-2xl border-border/70 shadow-sm overflow-hidden flex flex-col flex-1">
+          <div className="flex flex-col gap-6 xl:col-span-5">
+            <Card className={cn(adminGlassCard, 'flex flex-1 flex-col overflow-hidden')}>
               <CardHeader className="space-y-1 pb-2 px-5 pt-5">
                 <CardTitle className="text-base">Orders by status</CardTitle>
                 <CardDescription>Live share from all orders</CardDescription>
@@ -459,10 +516,10 @@ const Dashboard = () => {
               </CardContent>
             </Card>
 
-            <Card className="rounded-2xl border-border/70 shadow-sm overflow-hidden flex flex-col flex-1">
+            <Card className={cn(adminGlassCard, 'flex flex-1 flex-col overflow-hidden')}>
               <CardHeader className="space-y-1 pb-2 px-5 pt-5">
                 <div className="flex items-center gap-2">
-                  <PieChartIcon className="h-4 w-4 text-muted-foreground shrink-0" aria-hidden />
+                  <PieChartIcon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                   <CardTitle className="text-base">Sales by category</CardTitle>
                 </div>
                 <CardDescription>Revenue mix by section — sample data for now</CardDescription>
@@ -518,8 +575,8 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <Card className="rounded-2xl border-border/70 shadow-sm overflow-hidden">
-        <CardHeader className="space-y-1 pb-2 px-5 sm:px-6 pt-5">
+      <Card className={cn(adminGlassCard, 'overflow-hidden')}>
+        <CardHeader className="space-y-1 pb-2 px-5 pt-5 sm:px-6">
           <CardTitle className="text-lg">Order volume</CardTitle>
           <CardDescription>Orders per week — same demo / live split as revenue</CardDescription>
         </CardHeader>
@@ -544,8 +601,8 @@ const Dashboard = () => {
       </Card>
 
       {/* Recent orders */}
-      <Card className="rounded-2xl border-border/70 shadow-sm">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 px-5 sm:px-6 pt-5">
+      <Card className={adminGlassCard}>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 px-5 pt-5 sm:px-6">
           <div>
             <CardTitle className="text-lg">Recent orders</CardTitle>
             <CardDescription>Newest first</CardDescription>
@@ -617,6 +674,7 @@ const Dashboard = () => {
           )}
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 };
@@ -635,8 +693,13 @@ function MetricCard({
   iconClass: string;
 }) {
   return (
-    <Card className="relative overflow-hidden rounded-2xl border-border/70 bg-card/80 shadow-sm transition-all duration-200 hover:border-border hover:shadow-md">
-      <div className={cn('absolute left-0 top-0 bottom-0 w-1', accent)} aria-hidden />
+    <Card
+      className={cn(
+        adminGlassCard,
+        'relative overflow-hidden transition-all duration-300 hover:-translate-y-0.5 hover:border-indigo-200/50 hover:shadow-xl hover:shadow-indigo-500/[0.06] dark:hover:border-indigo-500/25',
+      )}
+    >
+      <div className={cn('absolute bottom-0 left-0 top-0 w-1 rounded-l-[inherit]', accent)} aria-hidden />
       <CardContent className="p-5 pl-6">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">

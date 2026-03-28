@@ -112,16 +112,13 @@ const localWardrobeService = {
       imageUrl: string | null;
       quantity?: number;
     }
-  ): WardrobeItemDTO {
+  ): { dto: WardrobeItemDTO; isNew: boolean } {
     const entries = loadEntries(userId);
     const sk = slotKey(params.routeKey, params.size, params.color);
     const idx = entries.findIndex((e) => slotKey(e.routeKey, e.size, e.color) === sk);
     const addQ = params.quantity && params.quantity > 0 ? params.quantity : 1;
     if (idx >= 0) {
-      const e = entries[idx];
-      e.quantity = (e.quantity ?? 1) + addQ;
-      saveEntries(userId, entries);
-      return toDto(e);
+      return { dto: toDto(entries[idx]), isNew: false };
     }
     const entry: LocalWardrobeEntry = {
       localId: nextLocalId(entries),
@@ -139,7 +136,14 @@ const localWardrobeService = {
     };
     entries.push(entry);
     saveEntries(userId, entries);
-    return toDto(entry);
+    return { dto: toDto(entry), isNew: true };
+  },
+
+  remove(userId: string, localId: number): void {
+    const entries = loadEntries(userId);
+    const next = entries.filter((e) => e.localId !== localId);
+    if (next.length === entries.length) return;
+    saveEntries(userId, next);
   },
 
   logWorn(userId: string, localId: number): void {
@@ -158,6 +162,15 @@ const localWardrobeService = {
     if (!e) return;
     e.lifecycleState = 'REPAIR_NEEDED';
     e.notes = notes ?? e.notes;
+    saveEntries(userId, entries);
+  },
+
+  clearRepairNeed(userId: string, localId: number): void {
+    const entries = loadEntries(userId);
+    const e = entries.find((x) => x.localId === localId);
+    if (!e || e.lifecycleState !== 'REPAIR_NEEDED') return;
+    const wear = e.wearCount ?? 0;
+    e.lifecycleState = wear >= 6 ? 'FREQUENTLY_USED' : 'NEW';
     saveEntries(userId, entries);
   },
 

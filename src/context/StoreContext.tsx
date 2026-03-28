@@ -10,28 +10,16 @@ import {
 import cartService from '@/services/cartService';
 import wishlistService from '@/services/wishlistService';
 import addressService from '@/services/addressService';
-import orderService, { type OrderItemLine } from '@/services/orderService';
+import orderService, { type OrderItemLine, type Order as ApiOrderRecord } from '@/services/orderService';
 import { apiProductToProduct } from '@/lib/productAdapter';
-
-function mapPaymentMethodForStore(m: string): Order['paymentMethod'] {
-  const u = (m || '').toUpperCase();
-  if (u === 'CARD' || u === 'CREDIT_CARD') return 'card';
-  if (u === 'UPI') return 'upi';
-  return 'cod';
-}
-
-function mapOrderStatusForStore(s: string): Order['status'] {
-  const u = (s || '').toUpperCase();
-  if (u === 'DELIVERED') return 'delivered';
-  if (u === 'CANCELLED' || u === 'RETURNED') return 'cancelled';
-  if (u === 'SHIPPED' || u === 'OUT_FOR_DELIVERY') return 'shipped';
-  return 'processing';
-}
+import { withLocalListingImages } from '@/lib/localListingImages';
+import { mapOrderStatusForStore, mapPaymentMethodForStore } from '@/lib/orderStoreMaps';
+import { promptLogin } from '@/lib/authPrompt';
 
 /** Map API order lines into store CartItems so /orders can render without full product payloads. */
 function cartItemsFromOrderLines(lines: OrderItemLine[]): CartItem[] {
-  return (lines ?? []).map((line) => ({
-    product: {
+  return (lines ?? []).map((line) => {
+    const product: Product = {
       id: String(line.productId ?? ''),
       name: line.productName ?? 'Product',
       brand: line.productBrand ?? '—',
@@ -48,17 +36,48 @@ function cartItemsFromOrderLines(lines: OrderItemLine[]): CartItem[] {
       rating: 0,
       reviewCount: 0,
       inStock: true,
+    };
+    return {
+      product: withLocalListingImages(product),
+      quantity: line.quantity ?? 0,
+      size: line.size ?? '',
+      color: line.color ?? '',
+    };
+  });
+}
+
+/** Map a user-order row from GET /orders into the store {@link Order} shape. */
+function storeOrderFromApiRecord(order: ApiOrderRecord): Order {
+  const addr = order.address ?? {};
+  return {
+    id: order.orderNumber,
+    items: cartItemsFromOrderLines((order.items ?? []) as OrderItemLine[]),
+    totalAmount: Number(order.totalAmount),
+    discount: Number(order.discount ?? 0),
+    deliveryFee: Number(order.deliveryFee ?? 0),
+    address: {
+      id: addr.id?.toString() || '',
+      name: addr.name ?? '',
+      phone: addr.phone ?? '',
+      pincode: addr.pincode ?? '',
+      locality: addr.locality || '',
+      address: addr.addressLine1 ?? '',
+      city: addr.city ?? '',
+      state: addr.state ?? '',
+      type: 'home',
+      isDefault: false,
     },
-    quantity: line.quantity ?? 0,
-    size: line.size ?? '',
-    color: line.color ?? '',
-  }));
+    paymentMethod: mapPaymentMethodForStore(order.paymentMethod),
+    status: mapOrderStatusForStore(order.orderStatus),
+    orderedAt: new Date(order.createdAt),
+    deliveredAt: order.deliveredAt ? new Date(order.deliveredAt) : undefined,
+  };
 }
 
 interface StoreContextType {
   // Cart
   cart: CartItem[];
-  addToCart: (product: Product, size: string, color: string) => void;
+  addToCart: (product: Product, size: string, color: string) => Promise<boolean>;
   removeFromCart: (productId: string, size: string) => void;
   updateCartQuantity: (productId: string, size: string, quantity: number) => void;
   clearCart: () => void;
@@ -70,7 +89,7 @@ interface StoreContextType {
 
   // Wishlist
   wishlist: WishlistItem[];
-  addToWishlist: (product: Product) => void;
+  addToWishlist: (product: Product) => boolean;
   removeFromWishlist: (productId: string) => void;
   isInWishlist: (productId: string) => boolean;
   isLoadingWishlist: boolean;
@@ -91,6 +110,8 @@ interface StoreContextType {
   // Orders
   orders: Order[];
   addOrder: (order: Order) => void;
+  /** Re-fetch orders from the API (e.g. after admin updates status). Does not clear local list on failure. */
+  refreshOrders: () => Promise<void>;
   isLoadingOrders: boolean;
 }
 
@@ -301,7 +322,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const items = await cartService.getCart();
       const mapped: CartItem[] = (items || []).map((i: { id: number; product: unknown; size: string; color: string; quantity: number }) => ({
         cartItemId: i.id,
-        product: apiProductToProduct(i.product as Parameters<typeof apiProductToProduct>[0]),
+        product: withLocalListingImages(
+          apiProductToProduct(i.product as Parameters<typeof apiProductToProduct>[0])
+        ),
         quantity: i.quantity,
         size: i.size,
         color: i.color,
@@ -316,7 +339,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!authService.isAuthenticated()) return;
     try {
       const list = await wishlistService.getWishlist();
-      setWishlist((list || []).map((p: unknown) => ({ product: apiProductToProduct(p as Parameters<typeof apiProductToProduct>[0]), addedAt: new Date() })));
+      setWishlist(
+        (list || []).map((p: unknown) => ({
+          product: withLocalListingImages(apiProductToProduct(p as Parameters<typeof apiProductToProduct>[0])),
+          addedAt: new Date(),
+        }))
+      );
     } catch {
       // keep current
     }
@@ -359,36 +387,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // Load orders - try backend first, fallback to localStorage
       setIsLoadingOrders(true);
       try {
-        const ordersData = await orderService.getUserOrders(0, 20);
+        const ordersData = await orderService.getUserOrders(0, 50);
         if (ordersData?.content) {
           if (ordersData.content.length === 0) {
             setOrders([]);
           } else {
-            setOrders(
-              ordersData.content.map((order) => ({
-                id: order.orderNumber,
-                items: cartItemsFromOrderLines(order.items),
-                totalAmount: Number(order.totalAmount),
-                discount: Number(order.discount),
-                deliveryFee: Number(order.deliveryFee),
-                address: {
-                  id: order.address.id?.toString() || '',
-                  name: order.address.name,
-                  phone: order.address.phone,
-                  pincode: order.address.pincode,
-                  locality: order.address.locality || '',
-                  address: order.address.addressLine1,
-                  city: order.address.city,
-                  state: order.address.state,
-                  type: 'home',
-                  isDefault: false,
-                },
-                paymentMethod: mapPaymentMethodForStore(order.paymentMethod),
-                status: mapOrderStatusForStore(order.orderStatus),
-                orderedAt: new Date(order.createdAt),
-                deliveredAt: order.deliveredAt ? new Date(order.deliveredAt) : undefined,
-              })),
-            );
+            setOrders(ordersData.content.map((row) => storeOrderFromApiRecord(row as ApiOrderRecord)));
           }
         }
         // If API fails, localStorage orders from loadUserCartWishlist remain
@@ -406,10 +410,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const addToCart = useCallback(async (product: Product, size: string, color: string) => {
+  const addToCart = useCallback(async (product: Product, size: string, color: string): Promise<boolean> => {
     if (!authService.isAuthenticated()) {
-      alert('Please login to add items to cart');
-      return;
+      promptLogin();
+      return false;
     }
     try {
       await cartService.addToCart({
@@ -419,6 +423,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         quantity: 1,
       });
       await loadCartFromApi();
+      return true;
     } catch {
       setCart((prev) => {
         const existing = prev.find((item) => item.product.id === product.id && item.size === size);
@@ -429,6 +434,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
         return [...prev, { product, quantity: 1, size, color }];
       });
+      return true;
     }
   }, [loadCartFromApi]);
 
@@ -494,14 +500,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [loadCartFromApi]);
 
-  const addToWishlist = useCallback((product: Product) => {
+  const addToWishlist = useCallback((product: Product): boolean => {
     if (!authService.isAuthenticated()) {
-      alert('Please login to add items to wishlist');
-      return;
+      promptLogin();
+      return false;
     }
     wishlistService.addToWishlist(Number(product.id)).then(() => loadWishlistFromApi()).catch(() => {
       setWishlist((prev) => (prev.some((item) => item.product.id === product.id) ? prev : [...prev, { product, addedAt: new Date() }]));
     });
+    return true;
   }, [loadWishlistFromApi]);
 
   const removeFromWishlist = useCallback((productId: string) => {
@@ -582,6 +589,21 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setOrders((prev) => [order, ...prev]);
   }, []);
 
+  const refreshOrders = useCallback(async () => {
+    if (!authService.isAuthenticated()) return;
+    try {
+      const ordersData = await orderService.getUserOrders(0, 50);
+      if (!ordersData?.content) return;
+      if (ordersData.content.length === 0) {
+        setOrders([]);
+        return;
+      }
+      setOrders(ordersData.content.map((row) => storeOrderFromApiRecord(row as ApiOrderRecord)));
+    } catch (error) {
+      console.error('Error refreshing orders from API:', error);
+    }
+  }, []);
+
   const logout = useCallback(() => {
     authService.logout();
     setUser(null);
@@ -624,6 +646,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         isLoadingAddresses,
         orders,
         addOrder,
+        refreshOrders,
         isLoadingOrders,
       }}
     >

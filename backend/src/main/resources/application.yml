@@ -50,6 +50,9 @@ file:
   base-url: ${FILE_BASE_URL:http://localhost:8080/api/v1/files}
 
 app:
+  # Inserts ~36 demo products (slug seed-*) if missing — aligns admin/API with storefront mocks. Set false in production if you manage catalog only via admin/SQL.
+  catalog-demo-seed:
+    enabled: ${CATALOG_DEMO_SEED_ENABLED:true}
   redis:
     enabled: ${APP_REDIS_ENABLED:false}
   rate-limit:

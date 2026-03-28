@@ -122,6 +122,88 @@ export default {
           "0%, 100%": { backgroundPosition: "0% 50%" },
           "50%": { backgroundPosition: "100% 50%" },
         },
+        /** Body profile / measurement studio */
+        "body-zone-glow": {
+          "0%, 100%": { opacity: "0.35", transform: "scale(1)" },
+          "50%": { opacity: "0.55", transform: "scale(1.06)" },
+        },
+        "body-zone-float": {
+          "0%, 100%": { transform: "translateY(0) translateX(0)" },
+          "33%": { transform: "translateY(-8px) translateX(4px)" },
+          "66%": { transform: "translateY(4px) translateX(-4px)" },
+        },
+        "body-scan": {
+          "0%": { transform: "translateY(-120%)", opacity: "0" },
+          "15%": { opacity: "0.35" },
+          "85%": { opacity: "0.35" },
+          "100%": { transform: "translateY(120%)", opacity: "0" },
+        },
+        "body-tick": {
+          "0%, 100%": { opacity: "0.25" },
+          "50%": { opacity: "0.7" },
+        },
+        /** Virtual wardrobe / closet room */
+        "wardrobe-ambient": {
+          "0%, 100%": { opacity: "0.5", transform: "scale(1)" },
+          "50%": { opacity: "0.75", transform: "scale(1.03)" },
+        },
+        "wardrobe-rail-shine": {
+          "0%": { backgroundPosition: "0% 50%" },
+          "100%": { backgroundPosition: "200% 50%" },
+        },
+        /** Home & catalog listing */
+        "ken-burns": {
+          "0%": { transform: "scale(1) translate(0, 0)" },
+          "100%": { transform: "scale(1.09) translate(-1.5%, -0.5%)" },
+        },
+        "home-reveal-up": {
+          from: { opacity: "0", transform: "translateY(28px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+        "home-float-slow": {
+          "0%, 100%": { transform: "translate(0, 0) scale(1)" },
+          "33%": { transform: "translate(12px, -18px) scale(1.05)" },
+          "66%": { transform: "translate(-10px, 10px) scale(0.98)" },
+        },
+        "home-gradient-shift": {
+          "0%, 100%": { backgroundPosition: "0% 50%" },
+          "50%": { backgroundPosition: "100% 50%" },
+        },
+        "home-shimmer-sweep": {
+          "0%": { transform: "translateX(-100%) skewX(-12deg)", opacity: "0" },
+          "20%": { opacity: "0.35" },
+          "60%": { opacity: "0.2" },
+          "100%": { transform: "translateX(200%) skewX(-12deg)", opacity: "0" },
+        },
+        "home-pulse-soft": {
+          "0%, 100%": { opacity: "0.4", transform: "scale(1)" },
+          "50%": { opacity: "0.65", transform: "scale(1.08)" },
+        },
+        "deal-card-glow": {
+          "0%, 100%": { boxShadow: "0 0 0 0 hsl(var(--primary) / 0)" },
+          "50%": { boxShadow: "0 12px 40px -8px hsl(var(--primary) / 0.25)" },
+        },
+        /** Category listing hero — light rays */
+        "category-hero-ray": {
+          "0%": { transform: "translateX(-130%) skewX(-20deg)", opacity: "0" },
+          "12%": { opacity: "0.55" },
+          "45%": { opacity: "0.4" },
+          "100%": { transform: "translateX(320%) skewX(-20deg)", opacity: "0" },
+        },
+        "category-hero-ray-narrow": {
+          "0%": { transform: "translateX(-160%) skewX(-28deg)", opacity: "0" },
+          "18%": { opacity: "0.35" },
+          "40%": { opacity: "0.22" },
+          "100%": { transform: "translateX(380%) skewX(-28deg)", opacity: "0" },
+        },
+        "category-hero-edge-shine": {
+          "0%, 100%": { opacity: "0.35", transform: "translateX(-20%)" },
+          "50%": { opacity: "0.85", transform: "translateX(20%)" },
+        },
+        "category-hero-vignette-pulse": {
+          "0%, 100%": { opacity: "0.45" },
+          "50%": { opacity: "0.65" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -133,6 +215,23 @@ export default {
         "assistant-message-in":
           "assistant-message-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both",
         "assistant-gradient": "assistant-gradient 8s ease infinite",
+        "body-zone-glow": "body-zone-glow 7s ease-in-out infinite",
+        "body-zone-float": "body-zone-float 12s ease-in-out infinite",
+        "body-scan": "body-scan 4.5s ease-in-out infinite",
+        "body-tick": "body-tick 2.2s ease-in-out infinite",
+        "wardrobe-ambient": "wardrobe-ambient 14s ease-in-out infinite",
+        "wardrobe-rail-shine": "wardrobe-rail-shine 18s linear infinite",
+        "ken-burns": "ken-burns 14s ease-in-out infinite alternate",
+        "home-reveal-up": "home-reveal-up 0.75s cubic-bezier(0.22, 1, 0.36, 1) both",
+        "home-float-slow": "home-float-slow 18s ease-in-out infinite",
+        "home-gradient-shift": "home-gradient-shift 10s ease infinite",
+        "home-shimmer-sweep": "home-shimmer-sweep 2.8s ease-in-out infinite",
+        "home-pulse-soft": "home-pulse-soft 5s ease-in-out infinite",
+        "deal-card-glow": "deal-card-glow 4s ease-in-out infinite",
+        "category-hero-ray": "category-hero-ray 5.8s cubic-bezier(0.4, 0, 0.2, 1) infinite",
+        "category-hero-ray-narrow": "category-hero-ray-narrow 7.2s cubic-bezier(0.4, 0, 0.2, 1) infinite",
+        "category-hero-edge-shine": "category-hero-edge-shine 4s ease-in-out infinite",
+        "category-hero-vignette-pulse": "category-hero-vignette-pulse 8s ease-in-out infinite",
       },
     },
   },

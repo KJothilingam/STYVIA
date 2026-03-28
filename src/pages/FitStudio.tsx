@@ -154,13 +154,14 @@ export default function FitStudio() {
   if (fit?.allSizes?.length) fit.allSizes.forEach((s) => bySize.set(s.size, s.confidence));
   else if (fit?.breakdown?.length) fit.breakdown.forEach((b) => bySize.set(b.size, b.finalScore ?? b.score));
 
-  const addFromStudio = () => {
+  const addFromStudio = async () => {
     if (!selectedSize) {
       toast({ title: 'Choose a size', variant: 'destructive' });
       return;
     }
     const color = product.colors?.[0]?.name ?? '';
-    addToCart(product, selectedSize, color);
+    const ok = await addToCart(product, selectedSize, color);
+    if (!ok) return;
     toast({ title: 'Added to bag', description: `${product.name} · ${selectedSize}` });
     navigate('/cart');
   };

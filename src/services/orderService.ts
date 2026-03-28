@@ -22,6 +22,19 @@ export interface Order {
   deliveredAt?: string;
 }
 
+/** Mirrors backend {@code OrderItemDTO} for typing order line items from the API. */
+export interface OrderItemLine {
+  id?: number;
+  productId?: number;
+  productName?: string;
+  productBrand?: string;
+  size?: string;
+  color?: string;
+  price?: number;
+  quantity?: number;
+  subtotal?: number;
+}
+
 export interface PageResponse<T> {
   content: T[];
   totalElements: number;

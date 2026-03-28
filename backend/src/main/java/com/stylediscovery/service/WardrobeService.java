@@ -2,6 +2,7 @@ package com.stylediscovery.service;
 
 import com.stylediscovery.dto.WardrobeItemDTO;
 import com.stylediscovery.entity.*;
+import com.stylediscovery.enums.DonationPickupStatus;
 import com.stylediscovery.enums.OrderStatus;
 import com.stylediscovery.enums.WardrobeLifecycleState;
 import com.stylediscovery.exception.BadRequestException;
@@ -15,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -27,6 +29,12 @@ public class WardrobeService {
     private final OrderItemRepository orderItemRepository;
     private final ProductImageRepository productImageRepository;
     private final ProductRepository productRepository;
+    private final DonationPickupRequestRepository donationPickupRequestRepository;
+
+    private static final Set<DonationPickupStatus> ACTIVE_PICKUP_STATUSES = Set.of(
+            DonationPickupStatus.PENDING,
+            DonationPickupStatus.REQ_ACCEPTED,
+            DonationPickupStatus.EXPECTED_PICK_DATE);
 
     @Transactional(readOnly = true)
     public List<WardrobeItemDTO> list(Long userId) {
@@ -209,6 +217,18 @@ public class WardrobeService {
         wardrobeItemRepository.save(w);
     }
 
+    /** Clears "needs wash" and returns to NEW or FREQUENTLY_USED based on wear count (matches log-worn rules). */
+    @Transactional
+    public void clearRepairNeed(Long userId, Long wardrobeItemId) {
+        WardrobeItem w = getOwned(userId, wardrobeItemId);
+        if (w.getLifecycleState() != WardrobeLifecycleState.REPAIR_NEEDED) {
+            return;
+        }
+        int wear = w.getWearCount() != null ? w.getWearCount() : 0;
+        w.setLifecycleState(wear >= 6 ? WardrobeLifecycleState.FREQUENTLY_USED : WardrobeLifecycleState.NEW);
+        wardrobeItemRepository.save(w);
+    }
+
     @Transactional
     public void logDonate(Long userId, Long wardrobeItemId, String notes) {
         WardrobeItem w = getOwned(userId, wardrobeItemId);
@@ -217,16 +237,54 @@ public class WardrobeService {
         wardrobeItemRepository.save(w);
     }
 
+    /**
+     * Sets DONATED after a verified pickup workflow (admin completed). Skips active-pickup guard by design.
+     */
     @Transactional
-    public void logEvent(Long userId, Long wardrobeItemId, String event, String notes) {
-        if ("DONATED".equalsIgnoreCase(event)) {
-            WardrobeItem w = getOwned(userId, wardrobeItemId);
-            w.setLifecycleState(WardrobeLifecycleState.DONATED);
-            w.setNotes(notes);
-            wardrobeItemRepository.save(w);
-        } else {
-            throw new BadRequestException("Unsupported event: " + event);
+    public void applyDonatedAfterPickup(Long userId, Long wardrobeItemId, String notes) {
+        WardrobeItem w = getOwned(userId, wardrobeItemId);
+        w.setLifecycleState(WardrobeLifecycleState.DONATED);
+        if (StringUtils.hasText(notes)) {
+            w.setNotes(notes.trim());
         }
+        wardrobeItemRepository.save(w);
+    }
+
+    /**
+     * User confirms they donated outside our pickup flow. Blocked while a pickup request is still in progress
+     * for this wardrobe row so completion can apply DONATED once.
+     */
+    @Transactional
+    public void markDonatedByUser(Long userId, Long wardrobeItemId, String notes) {
+        if (wardrobeItemId == null) {
+            throw new BadRequestException("Wardrobe item id is required.");
+        }
+        if (hasActiveDonationPickupForWardrobeItem(userId, wardrobeItemId)) {
+            throw new BadRequestException(
+                    "A donation pickup is already scheduled for this item. It will leave your wardrobe when that request is marked completed.");
+        }
+        WardrobeItem w = getOwned(userId, wardrobeItemId);
+        w.setLifecycleState(WardrobeLifecycleState.DONATED);
+        if (StringUtils.hasText(notes)) {
+            w.setNotes(notes.trim());
+        }
+        wardrobeItemRepository.save(w);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean hasActiveDonationPickupForWardrobeItem(Long userId, Long wardrobeItemId) {
+        if (wardrobeItemId == null) {
+            return false;
+        }
+        return donationPickupRequestRepository.existsByUser_IdAndWardrobeItemIdAndStatusIn(
+                userId, wardrobeItemId, ACTIVE_PICKUP_STATUSES);
+    }
+
+    /** Removes a row from the user's wardrobe (e.g. confirmed donated outside pickup flow). */
+    @Transactional
+    public void deleteForUser(Long userId, Long wardrobeItemId) {
+        WardrobeItem w = getOwned(userId, wardrobeItemId);
+        wardrobeItemRepository.delete(w);
     }
 
     @Transactional
@@ -237,7 +295,7 @@ public class WardrobeService {
         } else if ("REPAIRED".equalsIgnoreCase(ev)) {
             logRepair(userId, req.getWardrobeItemId(), req.getNotes());
         } else if ("DONATED".equalsIgnoreCase(ev)) {
-            logEvent(userId, req.getWardrobeItemId(), "DONATED", req.getNotes());
+            markDonatedByUser(userId, req.getWardrobeItemId(), req.getNotes());
         } else {
             throw new BadRequestException("Unknown event");
         }

@@ -21,6 +21,7 @@ import { useStore } from '@/context/StoreContext';
 import { categories } from '@/data/categories';
 import { cn } from '@/lib/utils';
 import authService from '@/services/authService';
+import { promptLogin } from '@/lib/authPrompt';
 
 /** Highlighted “you are here” treatment for the compact feature links (xl strip). */
 const featureNavActiveClass =
@@ -117,62 +118,64 @@ const Header = () => {
                 )}
               </div>
             ))}
-            <div
-              className="hidden shrink-0 self-stretch items-center gap-1.5 border-l border-border/80 pl-2 ml-1 lg:flex lg:pl-2.5 lg:gap-2 xl:gap-3 xl:pl-3 xl:ml-1.5"
-              role="navigation"
-              aria-label="Style, community, and maps"
-            >
-              <Link
-                to={isLoggedIn ? '/body' : '/login?next=%2Fbody'}
-                className={cn(
-                  'inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 text-[11px] font-bold uppercase tracking-wide transition-colors xl:gap-2 xl:px-2.5 xl:text-xs',
-                  onBodyPage
-                    ? featureNavActiveClass
-                    : 'text-intelligence-mid hover:text-intelligence-accent'
-                )}
-                aria-current={onBodyPage ? 'page' : undefined}
+            {isLoggedIn ? (
+              <div
+                className="hidden shrink-0 self-stretch items-center gap-1.5 border-l border-border/80 pl-2 ml-1 lg:flex lg:pl-2.5 lg:gap-2 xl:gap-3 xl:pl-3 xl:ml-1.5"
+                role="navigation"
+                aria-label="Style, community, and maps"
               >
-                <UserRound className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
-                <span className="leading-none pt-px">Body</span>
-              </Link>
-              <Link
-                to={isLoggedIn ? '/wardrobe' : '/login?next=%2Fwardrobe'}
-                className={cn(
-                  'inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 text-[11px] font-bold uppercase tracking-wide transition-colors xl:gap-2 xl:px-2.5 xl:text-xs',
-                  onWardrobe
-                    ? featureNavActiveClass
-                    : 'text-intelligence-mid hover:text-intelligence-accent'
-                )}
-                aria-current={onWardrobe ? 'page' : undefined}
-              >
-                <Shirt className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
-                <span className="leading-none pt-px">Wardrobe</span>
-              </Link>
-              <Link
-                to={isLoggedIn ? '/donations' : '/login?next=%2Fdonations'}
-                className={cn(
-                  'inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 text-[11px] font-bold uppercase tracking-wide transition-colors xl:gap-2 xl:px-2.5 xl:text-xs',
-                  onDonations
-                    ? featureNavActiveDonateClass
-                    : 'text-emerald-700/90 hover:text-emerald-600 dark:text-emerald-400'
-                )}
-                aria-current={onDonations ? 'page' : undefined}
-              >
-                <HeartHandshake className="h-4 w-4 shrink-0" aria-hidden />
-                <span className="leading-none pt-px">Donate</span>
-              </Link>
-              <Link
-                to={isLoggedIn ? '/shops' : '/login?next=%2Fshops'}
-                className={cn(
-                  'inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 lg:px-2.5 text-[11px] font-bold uppercase tracking-wide transition-colors xl:text-xs',
-                  onShops ? featureNavActiveClass : 'text-intelligence-mid hover:text-intelligence-accent'
-                )}
-                aria-current={onShops ? 'page' : undefined}
-              >
-                <Map className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
-                <span className="leading-none pt-px">Maps</span>
-              </Link>
-            </div>
+                <Link
+                  to="/body"
+                  className={cn(
+                    'inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 text-[11px] font-bold uppercase tracking-wide transition-colors xl:gap-2 xl:px-2.5 xl:text-xs',
+                    onBodyPage
+                      ? featureNavActiveClass
+                      : 'text-intelligence-mid hover:text-intelligence-accent'
+                  )}
+                  aria-current={onBodyPage ? 'page' : undefined}
+                >
+                  <UserRound className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
+                  <span className="leading-none pt-px">Body</span>
+                </Link>
+                <Link
+                  to="/wardrobe"
+                  className={cn(
+                    'inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 text-[11px] font-bold uppercase tracking-wide transition-colors xl:gap-2 xl:px-2.5 xl:text-xs',
+                    onWardrobe
+                      ? featureNavActiveClass
+                      : 'text-intelligence-mid hover:text-intelligence-accent'
+                  )}
+                  aria-current={onWardrobe ? 'page' : undefined}
+                >
+                  <Shirt className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
+                  <span className="leading-none pt-px">Wardrobe</span>
+                </Link>
+                <Link
+                  to="/donations"
+                  className={cn(
+                    'inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 text-[11px] font-bold uppercase tracking-wide transition-colors xl:gap-2 xl:px-2.5 xl:text-xs',
+                    onDonations
+                      ? featureNavActiveDonateClass
+                      : 'text-emerald-700/90 hover:text-emerald-600 dark:text-emerald-400'
+                  )}
+                  aria-current={onDonations ? 'page' : undefined}
+                >
+                  <HeartHandshake className="h-4 w-4 shrink-0" aria-hidden />
+                  <span className="leading-none pt-px">Donate</span>
+                </Link>
+                <Link
+                  to="/shops"
+                  className={cn(
+                    'inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 lg:px-2.5 text-[11px] font-bold uppercase tracking-wide transition-colors xl:text-xs',
+                    onShops ? featureNavActiveClass : 'text-intelligence-mid hover:text-intelligence-accent'
+                  )}
+                  aria-current={onShops ? 'page' : undefined}
+                >
+                  <Map className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
+                  <span className="leading-none pt-px">Maps</span>
+                </Link>
+              </div>
+            ) : null}
           </nav>
 
           {/* Fixed-width search so it never grows over the nav; icons stay right */}
@@ -223,55 +226,72 @@ const Header = () => {
                 </Link>
               </>
             ) : null}
-            <Link to={isLoggedIn ? '/profile' : '/login'} className="shrink-0">
+            {isLoggedIn ? (
+              <Link to="/profile" className="shrink-0">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    'flex h-9 w-11 flex-col items-center justify-center gap-0.5 rounded-lg p-0 sm:h-10 sm:w-12',
+                    onAccountPage
+                      ? 'bg-primary/12 ring-inset ring-2 ring-primary/30 hover:bg-primary/15'
+                      : 'hover:bg-accent'
+                  )}
+                  aria-current={onAccountPage ? 'page' : undefined}
+                >
+                  <User className="!h-[1.125rem] !w-[1.125rem] shrink-0" />
+                  <span className="hidden text-[10px] font-medium leading-none sm:block">Profile</span>
+                </Button>
+              </Link>
+            ) : (
               <Button
+                type="button"
                 variant="ghost"
                 size="icon"
-                className={cn(
-                  'flex h-9 w-11 flex-col items-center justify-center gap-0.5 rounded-lg p-0 sm:h-10 sm:w-12',
-                  /* inset highlight so ring/border never paints over the search field */
-                  onAccountPage
-                    ? 'bg-primary/12 ring-inset ring-2 ring-primary/30 hover:bg-primary/15'
-                    : 'hover:bg-accent'
-                )}
-                aria-current={onAccountPage ? 'page' : undefined}
+                className="flex h-9 w-11 flex-col items-center justify-center gap-0.5 rounded-lg p-0 hover:bg-accent sm:h-10 sm:w-12"
+                onClick={() => promptLogin('/profile')}
+                aria-label="Profile — sign in"
               >
                 <User className="!h-[1.125rem] !w-[1.125rem] shrink-0" />
                 <span className="hidden text-[10px] font-medium leading-none sm:block">Profile</span>
               </Button>
-            </Link>
+            )}
 
-            <Link to="/wishlist" className="relative shrink-0">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="flex h-9 w-11 flex-col items-center justify-center gap-0.5 rounded-lg p-0 hover:bg-accent sm:h-10 sm:w-12"
-              >
-                <Heart className="!h-[1.125rem] !w-[1.125rem] shrink-0" />
-                <span className="hidden text-[10px] font-medium leading-none sm:block">Wishlist</span>
-                {wishlist.length > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[10px] w-4 h-4 rounded-full flex items-center justify-center">
-                    {wishlist.length}
-                  </span>
-                )}
-              </Button>
-            </Link>
+            {isLoggedIn ? (
+              <>
+                <Link to="/wishlist" className="relative shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="flex h-9 w-11 flex-col items-center justify-center gap-0.5 rounded-lg p-0 hover:bg-accent sm:h-10 sm:w-12"
+                  >
+                    <Heart className="!h-[1.125rem] !w-[1.125rem] shrink-0" />
+                    <span className="hidden text-[10px] font-medium leading-none sm:block">Wishlist</span>
+                    {wishlist.length > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[10px] w-4 h-4 rounded-full flex items-center justify-center">
+                        {wishlist.length}
+                      </span>
+                    )}
+                  </Button>
+                </Link>
 
-            <Link to="/cart" className="relative shrink-0">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="flex h-9 w-11 flex-col items-center justify-center gap-0.5 rounded-lg p-0 hover:bg-accent sm:h-10 sm:w-12"
-              >
-                <ShoppingBag className="!h-[1.125rem] !w-[1.125rem] shrink-0" />
-                <span className="hidden text-[10px] font-medium leading-none sm:block">Bag</span>
-                {cartItemsCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[10px] w-4 h-4 rounded-full flex items-center justify-center">
-                    {cartItemsCount}
-                  </span>
-                )}
-              </Button>
-            </Link>
+                <Link to="/cart" className="relative shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="flex h-9 w-11 flex-col items-center justify-center gap-0.5 rounded-lg p-0 hover:bg-accent sm:h-10 sm:w-12"
+                  >
+                    <ShoppingBag className="!h-[1.125rem] !w-[1.125rem] shrink-0" />
+                    <span className="hidden text-[10px] font-medium leading-none sm:block">Bag</span>
+                    {cartItemsCount > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[10px] w-4 h-4 rounded-full flex items-center justify-center">
+                        {cartItemsCount}
+                      </span>
+                    )}
+                  </Button>
+                </Link>
+              </>
+            ) : null}
 
             {/* Mobile Menu Toggle */}
             <Button
@@ -305,98 +325,100 @@ const Header = () => {
       {isMobileMenuOpen && (
         <div className="lg:hidden fixed inset-0 top-[108px] bg-background z-40 overflow-y-auto animate-slide-in-right">
           <nav className="container mx-auto px-4 py-4">
-            <div className="mb-4 rounded-xl border border-intelligence-mid/25 bg-intelligence-deep/[0.06] p-4">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-intelligence-mid mb-3 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5" aria-hidden />
-                Body intelligence
-              </p>
-              <div className="flex flex-col gap-1.5">
-                {isAdminUser ? (
+            {isLoggedIn ? (
+              <div className="mb-4 rounded-xl border border-intelligence-mid/25 bg-intelligence-deep/[0.06] p-4">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-intelligence-mid mb-3 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5" aria-hidden />
+                  Body intelligence
+                </p>
+                <div className="flex flex-col gap-1.5">
+                  {isAdminUser ? (
+                    <Link
+                      to="/admin"
+                      className="text-sm font-semibold rounded-lg px-2 py-2 transition-colors bg-primary/10 text-primary ring-1 ring-primary/25"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      Admin panel
+                    </Link>
+                  ) : null}
                   <Link
-                    to="/admin"
-                    className="text-sm font-semibold rounded-lg px-2 py-2 transition-colors bg-primary/10 text-primary ring-1 ring-primary/25"
+                    to="/body"
+                    className={cn(
+                      'text-sm rounded-lg px-2 py-2 transition-colors',
+                      onBodyPage
+                        ? 'bg-primary/10 text-primary font-medium ring-1 ring-primary/20'
+                        : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+                    )}
                     onClick={() => setIsMobileMenuOpen(false)}
                   >
-                    Admin panel
+                    Body profile
                   </Link>
-                ) : null}
-                <Link
-                  to={isLoggedIn ? '/body' : '/login?next=%2Fbody'}
-                  className={cn(
-                    'text-sm rounded-lg px-2 py-2 transition-colors',
-                    onBodyPage
-                      ? 'bg-primary/10 text-primary font-medium ring-1 ring-primary/20'
-                      : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground'
-                  )}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  Body profile
-                </Link>
-                <Link
-                  to={isLoggedIn ? '/wardrobe' : '/login?next=%2Fwardrobe'}
-                  className={cn(
-                    'text-sm rounded-lg px-2 py-2 transition-colors',
-                    onWardrobe
-                      ? 'bg-primary/10 text-primary font-medium ring-1 ring-primary/20'
-                      : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground'
-                  )}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  Wardrobe
-                </Link>
-                <Link
-                  to={isLoggedIn ? '/orders' : '/login?next=%2Forders'}
-                  className={cn(
-                    'text-sm rounded-lg px-2 py-2 transition-colors',
-                    onOrders
-                      ? 'bg-primary/10 text-primary font-medium ring-1 ring-primary/20'
-                      : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground'
-                  )}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  Orders &amp; fit feedback
-                </Link>
-                <Link
-                  to={isLoggedIn ? '/donations' : '/login?next=%2Fdonations'}
-                  className={cn(
-                    'text-sm rounded-lg px-2 py-2 transition-colors',
-                    onDonations && !donationsTabBoxes
-                      ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 font-medium ring-1 ring-emerald-500/25'
-                      : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground'
-                  )}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  Donations &amp; sustainability
-                </Link>
-                <Link
-                  to={isLoggedIn ? '/donations?tab=boxes' : '/login?next=%2Fdonations%3Ftab%3Dboxes'}
-                  className={cn(
-                    'text-sm rounded-lg px-2 py-2 transition-colors',
-                    onDonations && donationsTabBoxes
-                      ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 font-medium ring-1 ring-emerald-500/25'
-                      : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground'
-                  )}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  Donation box (QR drop)
-                </Link>
-                <Link
-                  to={isLoggedIn ? '/shops' : '/login?next=%2Fshops'}
-                  className={cn(
-                    'text-sm rounded-lg px-2 py-2 transition-colors',
-                    onShops
-                      ? 'bg-primary/10 text-primary font-medium ring-1 ring-primary/20'
-                      : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground'
-                  )}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  <span className="font-medium text-foreground">Maps</span>
-                  <span className="block text-xs text-muted-foreground font-normal mt-0.5">
-                    Nearby clothing stores
-                  </span>
-                </Link>
+                  <Link
+                    to="/wardrobe"
+                    className={cn(
+                      'text-sm rounded-lg px-2 py-2 transition-colors',
+                      onWardrobe
+                        ? 'bg-primary/10 text-primary font-medium ring-1 ring-primary/20'
+                        : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+                    )}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    Wardrobe
+                  </Link>
+                  <Link
+                    to="/orders"
+                    className={cn(
+                      'text-sm rounded-lg px-2 py-2 transition-colors',
+                      onOrders
+                        ? 'bg-primary/10 text-primary font-medium ring-1 ring-primary/20'
+                        : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+                    )}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    Orders &amp; fit feedback
+                  </Link>
+                  <Link
+                    to="/donations"
+                    className={cn(
+                      'text-sm rounded-lg px-2 py-2 transition-colors',
+                      onDonations && !donationsTabBoxes
+                        ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 font-medium ring-1 ring-emerald-500/25'
+                        : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+                    )}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    Donations &amp; sustainability
+                  </Link>
+                  <Link
+                    to="/donations?tab=boxes"
+                    className={cn(
+                      'text-sm rounded-lg px-2 py-2 transition-colors',
+                      onDonations && donationsTabBoxes
+                        ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 font-medium ring-1 ring-emerald-500/25'
+                        : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+                    )}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    Donation box (QR drop)
+                  </Link>
+                  <Link
+                    to="/shops"
+                    className={cn(
+                      'text-sm rounded-lg px-2 py-2 transition-colors',
+                      onShops
+                        ? 'bg-primary/10 text-primary font-medium ring-1 ring-primary/20'
+                        : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+                    )}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <span className="font-medium text-foreground">Maps</span>
+                    <span className="block text-xs text-muted-foreground font-normal mt-0.5">
+                      Nearby clothing stores
+                    </span>
+                  </Link>
+                </div>
               </div>
-            </div>
+            ) : null}
             {categories.map((category) => (
               <div key={category.id} className="border-b">
                 <Link

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { isAxiosError } from 'axios';
 import {
   Heart,
@@ -50,11 +50,13 @@ import { getProductById as getMockProduct, products as mockProducts } from '@/da
 import { useToast } from '@/hooks/use-toast';
 import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
 import { cn } from '@/lib/utils';
+import { promptLogin } from '@/lib/authPrompt';
 import ProductImageCarousel from '@/components/product/ProductImageCarousel';
 import SafeProductImage from '@/components/SafeProductImage';
 import fitService, { FitCheckResponse, OutfitRecommendationDTO } from '@/services/fitService';
 import bodyProfileService, { type BodyProfileDTO, type FitPreference } from '@/services/bodyProfileService';
 import productService from '@/services/productService';
+import { withLocalListingImages } from '@/lib/localListingImages';
 import wardrobeService, { WardrobeItemDTO } from '@/services/wardrobeService';
 import localWardrobeService from '@/services/localWardrobeService';
 import { Product } from '@/types';
@@ -115,7 +117,6 @@ function wardrobeAddErrorMessage(err: unknown): string {
 
 const ProductDetail = () => {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const { addToRecentlyViewed } = useRecentlyViewed();
@@ -208,7 +209,7 @@ const ProductDetail = () => {
 
   const runFitCheck = useCallback(() => {
     if (!user) {
-      toast({ title: 'Sign in required', description: 'Log in to check fit.', variant: 'destructive' });
+      promptLogin(id ? `/product/${id}` : undefined);
       return;
     }
     if (!isGarmentFitCategory) {
@@ -247,7 +248,7 @@ const ProductDetail = () => {
         });
       })
       .finally(() => setFitLoading(false));
-  }, [user, productIdNum, catalogProductId, selectedSize, isGarmentFitCategory, toast]);
+  }, [user, productIdNum, catalogProductId, selectedSize, isGarmentFitCategory, toast, id]);
 
   const handleGetOutfit = useCallback(() => {
     if (!canUseFit || Number.isNaN(productIdNum)) return;
@@ -325,15 +326,17 @@ const ProductDetail = () => {
     return 'MEN';
   };
 
-  const handleAddToBag = () => {
+  const handleAddToBag = async () => {
     if (!product) return;
     if (!selectedSize) {
       toast({ title: 'Please select a size', variant: 'destructive' });
       return;
     }
     const color = (selectedColor || product.colors[0]?.name || 'Default').trim();
-    addToCart(product, selectedSize, color);
-    toast({ title: 'Added to bag!', description: `${product.name} has been added to your bag.` });
+    const ok = await addToCart(product, selectedSize, color);
+    if (ok) {
+      toast({ title: 'Added to bag!', description: `${product.name} has been added to your bag.` });
+    }
   };
 
   const handleWishlistToggle = () => {
@@ -342,8 +345,10 @@ const ProductDetail = () => {
       removeFromWishlist(product.id);
       toast({ title: 'Removed from wishlist' });
     } else {
-      addToWishlist(product);
-      toast({ title: 'Added to wishlist' });
+      const ok = addToWishlist(product);
+      if (ok) {
+        toast({ title: 'Added to wishlist' });
+      }
     }
   };
 
@@ -357,7 +362,7 @@ const ProductDetail = () => {
 
   const handleAddToWardrobe = async () => {
     if (!user) {
-      navigate('/login', { state: { from: `/product/${id}` } });
+      promptLogin(id ? `/product/${id}` : undefined);
       return;
     }
     if (!product) return;
@@ -368,19 +373,26 @@ const ProductDetail = () => {
     const color = (selectedColor || product.colors[0]?.name || 'Default').trim();
     const pid = resolveNumericCatalogProductId(id, product.id);
     if (pid == null) {
-      const dto = localWardrobeService.addOrMerge(user.id, {
+      const { dto, isNew } = localWardrobeService.addOrMerge(user.id, {
         routeKey: id ?? product.id,
         productName: product.name,
         size: selectedSize.trim(),
         color,
-        imageUrl: product.images[0] ?? null,
+        imageUrl: withLocalListingImages(product).images[0] ?? null,
       });
       setWardrobeItemForProduct(dto);
-      toast({
-        title: 'Added to wardrobe',
-        description:
-          'Saved on this device for this product page. Shop catalog items also sync to your account.',
-      });
+      if (isNew) {
+        toast({
+          title: 'Added to wardrobe',
+          description:
+            'Saved on this device for this product page. Shop catalog items also sync to your account.',
+        });
+      } else {
+        toast({
+          title: 'Already in your wardrobe',
+          description: `${product.name} (${selectedSize.trim()} · ${color}) is already saved on this device.`,
+        });
+      }
       return;
     }
     setAddingToWardrobe(true);
@@ -409,7 +421,7 @@ const ProductDetail = () => {
       return;
     }
     if (!user) {
-      navigate('/login', { state: { from: `/product/${id}` } });
+      promptLogin(id ? `/product/${id}` : undefined);
       return;
     }
     if (!isGarmentFitCategory) {
@@ -584,7 +596,7 @@ const ProductDetail = () => {
           {/* LEFT: product images carousel only */}
           <div className="lg:sticky lg:top-28">
             <ProductImageCarousel
-              images={product.images}
+              images={withLocalListingImages(product).images}
               alt={product.name}
               index={selectedImage}
               onIndexChange={setSelectedImage}
@@ -787,7 +799,7 @@ const ProductDetail = () => {
                   <ShoppingBag className="w-5 h-5 mr-2" />
                   Add to cart
                 </Button>
-                {user && !wardrobeItemForProduct && (
+                {!wardrobeItemForProduct && (
                   <Button
                     type="button"
                     variant="outline"
@@ -827,7 +839,7 @@ const ProductDetail = () => {
                       <button
                         type="button"
                         className="font-medium text-intelligence-mid underline"
-                        onClick={() => navigate('/login', { state: { from: `/product/${id}` } })}
+                        onClick={() => promptLogin(id ? `/product/${id}` : undefined)}
                       >
                         Log in
                       </button>{' '}
@@ -867,7 +879,7 @@ const ProductDetail = () => {
                               >
                                 <Link to={`/product/${item.product.id}`} className="relative block aspect-[4/5] w-full overflow-hidden">
                                   <SafeProductImage
-                                    urls={item.product.images ?? []}
+                                    urls={withLocalListingImages(item.product).images ?? []}
                                     alt={item.product.name}
                                     className="absolute inset-0"
                                   />
@@ -882,13 +894,15 @@ const ProductDetail = () => {
                                   <Button
                                     size="sm"
                                     className="w-full h-8 text-xs bg-intelligence-deep hover:bg-intelligence-mid"
-                                    onClick={(e) => {
+                                    onClick={async (e) => {
                                       e.preventDefault();
-                                      const p = item.product;
+                                      const p = withLocalListingImages(item.product);
                                       const size = item.suggestedSize || p.sizes?.[0] || 'M';
                                       const color = p.colors?.[0]?.name ?? '';
-                                      addToCart(p, size, color);
-                                      toast({ title: 'Added to bag!', description: `${p.name} added.` });
+                                      const ok = await addToCart(p, size, color);
+                                      if (ok) {
+                                        toast({ title: 'Added to bag!', description: `${p.name} added.` });
+                                      }
                                     }}
                                   >
                                     Add

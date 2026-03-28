@@ -71,6 +71,10 @@ const wardrobeService = {
     await api.post(`/wardrobe/${wardrobeItemId}/repair`, { notes });
   },
 
+  async clearRepairNeed(wardrobeItemId: number): Promise<void> {
+    await api.post(`/wardrobe/${wardrobeItemId}/clear-repair`);
+  },
+
   async logDonate(wardrobeItemId: number, notes?: string): Promise<void> {
     await api.post(`/wardrobe/${wardrobeItemId}/donate`, { notes });
   },
@@ -78,6 +82,15 @@ const wardrobeService = {
   /** Unified lifecycle log (Body Intelligence wardrobe module). */
   async logEvent(wardrobeItemId: number, event: WardrobeLogEvent, notes?: string): Promise<void> {
     await api.post('/wardrobe/log', { wardrobeItemId, event, notes });
+  },
+
+  /** Marks item donated on the server; blocked if an active donation pickup exists for this wardrobe row. */
+  async markDonated(wardrobeItemId: number): Promise<void> {
+    await api.post(`/wardrobe/${wardrobeItemId}/mark-donated`);
+  },
+
+  async removeItem(wardrobeItemId: number): Promise<void> {
+    await api.delete(`/wardrobe/${wardrobeItemId}`);
   },
 };
 

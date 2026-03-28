@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { ImageOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { normalizeProductImageUrl } from '@/lib/productAdapter';
@@ -15,6 +15,19 @@ function isLoadableUrl(s: string): boolean {
   }
 }
 
+function buildCleanUrls(urls: Array<string | null | undefined> | undefined): string[] {
+  const seen = new Set<string>();
+  const parts: string[] = [];
+  for (const raw of urls ?? []) {
+    if (raw == null) continue;
+    const normalized = normalizeProductImageUrl(String(raw).trim());
+    if (!normalized || !isLoadableUrl(normalized) || seen.has(normalized)) continue;
+    seen.add(normalized);
+    parts.push(normalized);
+  }
+  return parts;
+}
+
 export type SafeProductImageProps = {
   urls: Array<string | null | undefined>;
   alt: string;
@@ -23,6 +36,7 @@ export type SafeProductImageProps = {
   classNameImg?: string;
   /** When using a carousel, set to the current slide index to retry that URL first */
   preferIndex?: number;
+  loading?: 'eager' | 'lazy';
 };
 
 /**
@@ -37,23 +51,13 @@ export default function SafeProductImage({
   preferIndex = 0,
   loading = 'eager',
 }: SafeProductImageProps) {
-  const urlKey = useMemo(() => {
-    const seen = new Set<string>();
-    const parts: string[] = [];
-    for (const raw of urls) {
-      if (raw == null) continue;
-      const normalized = normalizeProductImageUrl(String(raw).trim());
-      if (!normalized || !isLoadableUrl(normalized) || seen.has(normalized)) continue;
-      seen.add(normalized);
-      parts.push(normalized);
-    }
-    return parts.join('\0');
-  }, [urls]);
-
-  const cleanUrls = useMemo(() => (urlKey ? urlKey.split('\0') : []), [urlKey]);
+  /** Derive every render so a new `images` array reference never leaves memoized state stale. */
+  const cleanUrls = buildCleanUrls(urls);
+  const urlKey = cleanUrls.join('\0');
+  const imgRef = useRef<HTMLImageElement | null>(null);
 
   const [tryIndex, setTryIndex] = useState(0);
-  const [failed, setFailed] = useState(() => cleanUrls.length === 0);
+  const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -62,15 +66,24 @@ export default function SafeProductImage({
     setTryIndex(start);
     setFailed(len === 0);
     setLoaded(false);
-  }, [urlKey, preferIndex, cleanUrls.length]);
+  }, [urlKey, preferIndex]);
 
   const src = cleanUrls[tryIndex];
+
+  /** Cached / bfcache: image can finish before `onLoad` runs — unstick the invisible-until-loaded UI. */
+  useLayoutEffect(() => {
+    if (failed || !src) return;
+    const el = imgRef.current;
+    if (el?.complete && el.naturalWidth > 0) {
+      setLoaded(true);
+    }
+  }, [src, failed, tryIndex, urlKey]);
 
   const handleError = useCallback(() => {
     setLoaded(false);
     setTryIndex((i) => {
       if (i < cleanUrls.length - 1) return i + 1;
-      setFailed(true);
+      queueMicrotask(() => setFailed(true));
       return i;
     });
   }, [cleanUrls.length]);
@@ -94,6 +107,7 @@ export default function SafeProductImage({
     <div className={cn('relative h-full w-full overflow-hidden', className)}>
       {!loaded && <div className="absolute inset-0 animate-pulse bg-muted/90" aria-hidden />}
       <img
+        ref={imgRef}
         key={`${urlKey}-${tryIndex}-${src}`}
         src={src}
         alt={alt}

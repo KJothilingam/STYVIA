@@ -161,8 +161,19 @@ class AdminService {
   }
 
   async updateOrderStatus(orderId: number, status: string): Promise<unknown> {
-    const response = await api.put(`/admin/orders/${orderId}/status`, null, {
+    const response = await api.request({
+      method: 'PUT',
+      url: `/admin/orders/${orderId}/status`,
       params: { status },
+      // Instance default is application/json; without this, axios may send a JSON "null" body and Spring returns 400.
+      transformRequest: [
+        (data, headers) => {
+          if (headers && typeof headers === 'object' && 'Content-Type' in headers) {
+            delete (headers as Record<string, unknown>)['Content-Type'];
+          }
+          return data;
+        },
+      ],
     });
     return response.data.data;
   }

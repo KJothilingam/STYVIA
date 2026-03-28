@@ -1,6 +1,7 @@
 import api from './api';
 import { Product } from '@/types';
 import { apiProductToProduct, type ApiProduct } from '@/lib/productAdapter';
+import { withLocalListingImages } from '@/lib/localListingImages';
 
 export interface ProductFilters {
   gender?: string;
@@ -20,7 +21,7 @@ function asApiProduct(raw: unknown): ApiProduct {
 function mapPage(raw: PageResponse<unknown>): PageResponse<Product> {
   return {
     ...raw,
-    content: (raw.content ?? []).map((p) => apiProductToProduct(asApiProduct(p))),
+    content: (raw.content ?? []).map((p) => withLocalListingImages(apiProductToProduct(asApiProduct(p)))),
   };
 }
 
@@ -50,12 +51,12 @@ class ProductService {
 
   async getProductById(id: number): Promise<Product> {
     const response = await api.get(`/products/${id}`);
-    return apiProductToProduct(asApiProduct(response.data.data));
+    return withLocalListingImages(apiProductToProduct(asApiProduct(response.data.data)));
   }
 
   async getProductBySlug(slug: string): Promise<Product> {
     const response = await api.get(`/products/slug/${encodeURIComponent(slug)}`);
-    return apiProductToProduct(asApiProduct(response.data.data));
+    return withLocalListingImages(apiProductToProduct(asApiProduct(response.data.data)));
   }
 
   async searchProducts(keyword: string, page = 0, size = 20): Promise<PageResponse<Product>> {
